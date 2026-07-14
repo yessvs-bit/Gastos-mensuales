@@ -23,7 +23,7 @@
 
     <p id="estadoSync" class="sync-status">Conectando con Google Sheets…</p>
 
-    <section class="panel report-scope-panel">
+    <section class="panel">
       <span class="field-title">Vista</span>
       <div class="segmented three" id="alcanceSelector">
         <button type="button" data-value="Hogar" class="active">HOGAR</button>
@@ -53,61 +53,36 @@
       </div>
     </section>
 
-    <section class="report-grid report-grid-seven">
-      <article class="report-card">
-        <span>Ingresos</span>
-        <strong id="totalIngresos">$ 0</strong>
-      </article>
-      <article class="report-card" data-hogar>
-        <span>Yessi compartido</span>
-        <strong id="totalYessiCompartido">$ 0</strong>
-      </article>
-      <article class="report-card" data-hogar>
-        <span>Andy compartido</span>
-        <strong id="totalAndyCompartido">$ 0</strong>
-      </article>
-      <article class="report-card">
-        <span id="labelSolo1">Yessi solo</span>
-        <strong id="totalSolo1">$ 0</strong>
-      </article>
-      <article class="report-card" id="solo2Card">
-        <span id="labelSolo2">Andy solo</span>
-        <strong id="totalSolo2">$ 0</strong>
-      </article>
-      <article class="report-card">
-        <span>Ahorro ARS</span>
-        <strong id="totalAhorroARS">$ 0</strong>
-      </article>
-      <article class="report-card">
-        <span>Ahorro USD</span>
-        <strong id="totalAhorroUSD">USD 0,00</strong>
-      </article>
+    <section id="resumenHogar" class="report-grid report-grid-seven">
+      <article class="report-card"><span>Ingresos</span><strong id="hogarIngresos">$ 0</strong></article>
+      <article class="report-card"><span>Yessi compartido</span><strong id="hogarYessiCompartido">$ 0</strong></article>
+      <article class="report-card"><span>Andy compartido</span><strong id="hogarAndyCompartido">$ 0</strong></article>
+      <article class="report-card"><span>Yessi solo</span><strong id="hogarYessiSolo">$ 0</strong></article>
+      <article class="report-card"><span>Andy solo</span><strong id="hogarAndySolo">$ 0</strong></article>
+      <article class="report-card"><span>Ahorro ARS</span><strong id="hogarAhorroARS">$ 0</strong></article>
+      <article class="report-card"><span>Ahorro USD</span><strong id="hogarAhorroUSD">USD 0,00</strong></article>
+    </section>
+
+    <section id="resumenPersonal" class="report-grid report-grid-personal hidden-by-scope">
+      <article class="report-card"><span>Ingresos</span><strong id="personalIngresos">$ 0</strong></article>
+      <article class="report-card"><span>Compartido</span><strong id="personalCompartido">$ 0</strong></article>
+      <article class="report-card"><span>Solo</span><strong id="personalSolo">$ 0</strong></article>
+      <article class="report-card"><span>Ahorro ARS</span><strong id="personalAhorroARS">$ 0</strong></article>
+      <article class="report-card"><span>Ahorro USD</span><strong id="personalAhorroUSD">USD 0,00</strong></article>
     </section>
 
     <section class="indicator-grid">
-      <article class="indicator-card">
-        <span>Balance</span>
-        <strong id="balancePeriodo">$ 0</strong>
-      </article>
-      <article class="indicator-card">
-        <span>Tasa de ahorro</span>
-        <strong id="tasaAhorro">0%</strong>
-      </article>
-      <article class="indicator-card">
-        <span>Promedio diario</span>
-        <strong id="promedioDiario">$ 0</strong>
-      </article>
-      <article class="indicator-card">
-        <span>Movimientos</span>
-        <strong id="cantidadMovimientos">0</strong>
-      </article>
+      <article class="indicator-card"><span>Balance</span><strong id="balancePeriodo">$ 0</strong></article>
+      <article class="indicator-card"><span>Tasa de ahorro</span><strong id="tasaAhorro">0%</strong></article>
+      <article class="indicator-card"><span>Promedio diario</span><strong id="promedioDiario">$ 0</strong></article>
+      <article class="indicator-card"><span>Movimientos</span><strong id="cantidadMovimientos">0</strong></article>
     </section>
 
     <section class="panel">
       <div class="section-head">
         <div>
           <h2>Distribución</h2>
-          <small>Cómo se repartió el dinero del período</small>
+          <small>Cómo se repartió el dinero</small>
         </div>
       </div>
       <div id="graficoDistribucion" class="bar-list"></div>
@@ -127,7 +102,7 @@
       <div class="section-head">
         <div>
           <h2>Top lugares</h2>
-          <small>Dónde más gastaron</small>
+          <small>Dónde más se gastó</small>
         </div>
       </div>
       <div id="topLugares" class="rank-list"></div>
