@@ -5,6 +5,8 @@
 */
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZAT5hKXj6zHC0zAjTy3TxrBcMytiTkw89MxFB4h9suMTJEbil_k3V2kzZudGIhysr/exec";
 const STORAGE_KEY = "gastos-yessi-andy-v3";
+const LUGARES_KEY = "gastos-yessi-lugares-v1";
+const CONCEPTOS_KEY = "gastos-yessi-conceptos-v1";
 
 const $ = (selector) => document.querySelector(selector);
 const form = $("#gastoForm");
@@ -24,6 +26,8 @@ const cancelarBtn = $("#cancelarBtn");
 const exportarBtn = $("#exportarBtn");
 const filtroMes = $("#filtroMes");
 const busqueda = $("#busqueda");
+const lugaresGuardados = $("#lugaresGuardados");
+const conceptosGuardados = $("#conceptosGuardados");
 const totalYessi = $("#totalYessi");
 const totalAndy = $("#totalAndy");
 const totalCompartido = $("#totalCompartido");
@@ -49,6 +53,7 @@ function inicializar() {
   filtroMes.addEventListener("input", renderizar);
   busqueda.addEventListener("input", renderizar);
 
+  actualizarSugerencias();
   renderizar();
 }
 
@@ -116,6 +121,9 @@ async function guardarRegistro(event) {
       registros.push(nuevo);
     }
 
+    guardarSugerencia(LUGARES_KEY, nuevo.lugar);
+    guardarSugerencia(CONCEPTOS_KEY, nuevo.concepto);
+    actualizarSugerencias();
     persistir();
     limpiarFormulario();
     renderizar();
@@ -148,6 +156,43 @@ async function enviarAGoogleSheets(registro) {
       "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
     },
     body: cuerpo.toString()
+  });
+}
+
+
+function leerLista(clave) {
+  try {
+    return JSON.parse(localStorage.getItem(clave)) ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function guardarSugerencia(clave, valor) {
+  const limpio = String(valor || "").trim();
+  if (!limpio) return;
+
+  const lista = leerLista(clave);
+  const existe = lista.some((item) => item.toLowerCase() === limpio.toLowerCase());
+
+  if (!existe) {
+    lista.push(limpio);
+    lista.sort((a, b) => a.localeCompare(b, "es"));
+    localStorage.setItem(clave, JSON.stringify(lista));
+  }
+}
+
+function actualizarSugerencias() {
+  cargarDatalist(lugaresGuardados, leerLista(LUGARES_KEY));
+  cargarDatalist(conceptosGuardados, leerLista(CONCEPTOS_KEY));
+}
+
+function cargarDatalist(elemento, valores) {
+  elemento.innerHTML = "";
+  valores.forEach((valor) => {
+    const option = document.createElement("option");
+    option.value = valor;
+    elemento.appendChild(option);
   });
 }
 
