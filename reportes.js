@@ -10,11 +10,19 @@ const filtroHasta = $("#filtroHasta");
 const verTodoBtn = $("#verTodoBtn");
 
 const totalIngresos = $("#totalIngresos");
-const totalCompartidos = $("#totalCompartidos");
-const totalYessiSolo = $("#totalYessiSolo");
-const totalAndySolo = $("#totalAndySolo");
+const totalYessiCompartido = $("#totalYessiCompartido");
+const totalAndyCompartido = $("#totalAndyCompartido");
+const totalSolo1 = $("#totalSolo1");
+const totalSolo2 = $("#totalSolo2");
+const labelSolo1 = $("#labelSolo1");
+const labelSolo2 = $("#labelSolo2");
+const solo2Card = $("#solo2Card");
 const totalAhorroARS = $("#totalAhorroARS");
+const totalAhorroUSD = $("#totalAhorroUSD");
+const balancePeriodo = $("#balancePeriodo");
 const tasaAhorro = $("#tasaAhorro");
+const promedioDiario = $("#promedioDiario");
+const cantidadMovimientos = $("#cantidadMovimientos");
 
 const graficoDistribucion = $("#graficoDistribucion");
 const comparacionPeriodo = $("#comparacionPeriodo");
@@ -23,6 +31,7 @@ const topVacio = $("#topVacio");
 
 let registros = [];
 let jsonpSecuencia = 0;
+let alcance = "Hogar";
 
 inicializar();
 
@@ -34,7 +43,24 @@ async function inicializar() {
   verTodoBtn.addEventListener("click", limpiarRango);
   sincronizarBtn.addEventListener("click", sincronizar);
 
+  configurarSegmentado("#alcanceSelector", (value) => {
+    alcance = value;
+    renderizar();
+  });
+
   await sincronizar();
+}
+
+function configurarSegmentado(selector, callback) {
+  document.querySelectorAll(`${selector} button`).forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(`${selector} button`).forEach((item) => {
+        item.classList.remove("active");
+      });
+      button.classList.add("active");
+      callback(button.dataset.value);
+    });
+  });
 }
 
 function cargarRango() {
@@ -138,20 +164,61 @@ function normalizarRegistro(registro) {
 }
 
 function renderizar() {
-  const actuales = filtrarRango(registros, filtroDesde.value, filtroHasta.value);
+  const actualesBase = filtrarRango(registros, filtroDesde.value, filtroHasta.value);
+  const actuales = filtrarPorAlcance(actualesBase);
+
   const periodoAnterior = calcularPeriodoAnterior();
-  const anteriores = periodoAnterior
+  const anterioresBase = periodoAnterior
     ? filtrarRango(registros, periodoAnterior.desde, periodoAnterior.hasta)
     : [];
+  const anteriores = filtrarPorAlcance(anterioresBase);
 
   const metricasActuales = calcularMetricas(actuales);
   const metricasAnteriores = calcularMetricas(anteriores);
 
   totalIngresos.textContent = moneda(metricasActuales.ingresos);
-  totalCompartidos.textContent = moneda(metricasActuales.compartidos);
-  totalYessiSolo.textContent = moneda(metricasActuales.yessiSolo);
-  totalAndySolo.textContent = moneda(metricasActuales.andySolo);
+  totalYessiCompartido.textContent = moneda(metricasActuales.yessiCompartido);
+  totalAndyCompartido.textContent = moneda(metricasActuales.andyCompartido);
+
+  if (alcance === "Hogar") {
+    document.querySelectorAll("[data-hogar]").forEach((el) => {
+      el.classList.remove("hidden-by-scope");
+    });
+
+    labelSolo1.textContent = "Yessi solo";
+    totalSolo1.textContent = moneda(metricasActuales.yessiSolo);
+    labelSolo2.textContent = "Andy solo";
+    totalSolo2.textContent = moneda(metricasActuales.andySolo);
+    solo2Card.classList.remove("hidden-by-scope");
+  } else {
+    document.querySelectorAll("[data-hogar]").forEach((el) => {
+      el.classList.add("hidden-by-scope");
+    });
+
+    labelSolo1.textContent = `${alcance} solo`;
+    totalSolo1.textContent = moneda(
+      alcance === "Yessi"
+        ? metricasActuales.yessiSolo
+        : metricasActuales.andySolo
+    );
+    solo2Card.classList.add("hidden-by-scope");
+  }
+
   totalAhorroARS.textContent = moneda(metricasActuales.ahorroARS);
+  totalAhorroUSD.textContent = formatearUSD(metricasActuales.ahorroUSD);
+
+  const gastoTotal =
+    metricasActuales.yessiCompartido +
+    metricasActuales.andyCompartido +
+    metricasActuales.yessiSolo +
+    metricasActuales.andySolo;
+
+  const balance =
+    metricasActuales.ingresos -
+    gastoTotal -
+    metricasActuales.ahorroARS;
+
+  balancePeriodo.textContent = moneda(balance);
 
   const tasa = metricasActuales.ingresos > 0
     ? (metricasActuales.ahorroARS / metricasActuales.ingresos) * 100
@@ -159,9 +226,21 @@ function renderizar() {
 
   tasaAhorro.textContent = `${tasa.toFixed(1)}%`;
 
+  const dias = calcularDiasSeleccionados();
+  promedioDiario.textContent = moneda(dias > 0 ? gastoTotal / dias : 0);
+  cantidadMovimientos.textContent = actuales.length;
+
   renderizarDistribucion(metricasActuales);
   renderizarComparacion(metricasActuales, metricasAnteriores, !!periodoAnterior);
   renderizarTopLugares(actuales);
+}
+
+function filtrarPorAlcance(lista) {
+  if (alcance === "Hogar") return lista;
+
+  return lista.filter((registro) =>
+    registro.categoria.startsWith(`${alcance} `)
+  );
 }
 
 function filtrarRango(lista, desde, hasta) {
@@ -174,23 +253,30 @@ function filtrarRango(lista, desde, hasta) {
 function calcularMetricas(lista) {
   const metricas = {
     ingresos: 0,
-    compartidos: 0,
+    yessiCompartido: 0,
+    andyCompartido: 0,
     yessiSolo: 0,
     andySolo: 0,
-    ahorroARS: 0
+    ahorroARS: 0,
+    ahorroUSD: 0
   };
 
   lista.forEach((registro) => {
     const monto = Number(registro.importe || 0);
 
-    if (registro.categoria === "Yessi Ingreso" ||
-        registro.categoria === "Andy Ingreso") {
+    if (
+      registro.categoria === "Yessi Ingreso" ||
+      registro.categoria === "Andy Ingreso"
+    ) {
       metricas.ingresos += monto;
     }
 
-    if (registro.categoria === "Yessi Compartido" ||
-        registro.categoria === "Andy Compartido") {
-      metricas.compartidos += monto;
+    if (registro.categoria === "Yessi Compartido") {
+      metricas.yessiCompartido += monto;
+    }
+
+    if (registro.categoria === "Andy Compartido") {
+      metricas.andyCompartido += monto;
     }
 
     if (registro.categoria === "Yessi Solo") {
@@ -201,12 +287,14 @@ function calcularMetricas(lista) {
       metricas.andySolo += monto;
     }
 
-    if (
-      registro.categoria.endsWith(" Ahorro") &&
-      (registro.moneda || "ARS") === "ARS"
-    ) {
+    if (registro.categoria.endsWith(" Ahorro")) {
       const signo = registro.movimiento === "Retiro" ? -1 : 1;
-      metricas.ahorroARS += signo * monto;
+
+      if ((registro.moneda || "ARS") === "USD") {
+        metricas.ahorroUSD += signo * monto;
+      } else {
+        metricas.ahorroARS += signo * monto;
+      }
     }
   });
 
@@ -214,12 +302,30 @@ function calcularMetricas(lista) {
 }
 
 function renderizarDistribucion(metricas) {
-  const items = [
-    ["Compartidos", metricas.compartidos],
-    ["Yessi solo", metricas.yessiSolo],
-    ["Andy solo", metricas.andySolo],
-    ["Ahorro ARS", metricas.ahorroARS]
-  ];
+  let items;
+
+  if (alcance === "Hogar") {
+    items = [
+      ["Compartidos", metricas.yessiCompartido + metricas.andyCompartido],
+      ["Yessi solo", metricas.yessiSolo],
+      ["Andy solo", metricas.andySolo],
+      ["Ahorro ARS", metricas.ahorroARS]
+    ];
+  } else {
+    const solo = alcance === "Yessi"
+      ? metricas.yessiSolo
+      : metricas.andySolo;
+
+    const compartido = alcance === "Yessi"
+      ? metricas.yessiCompartido
+      : metricas.andyCompartido;
+
+    items = [
+      ["Compartido", compartido],
+      ["Solo", solo],
+      ["Ahorro ARS", metricas.ahorroARS]
+    ];
+  }
 
   const maximo = Math.max(...items.map(([, valor]) => Math.max(valor, 0)), 1);
 
@@ -253,13 +359,38 @@ function renderizarComparacion(actual, anterior, habilitada) {
     return;
   }
 
-  const items = [
-    ["Ingresos", actual.ingresos, anterior.ingresos, false],
-    ["Compartidos", actual.compartidos, anterior.compartidos, true],
-    ["Yessi solo", actual.yessiSolo, anterior.yessiSolo, true],
-    ["Andy solo", actual.andySolo, anterior.andySolo, true],
-    ["Ahorro ARS", actual.ahorroARS, anterior.ahorroARS, false]
-  ];
+  let items;
+
+  if (alcance === "Hogar") {
+    items = [
+      ["Ingresos", actual.ingresos, anterior.ingresos, false],
+      ["Yessi compartido", actual.yessiCompartido, anterior.yessiCompartido, true],
+      ["Andy compartido", actual.andyCompartido, anterior.andyCompartido, true],
+      ["Yessi solo", actual.yessiSolo, anterior.yessiSolo, true],
+      ["Andy solo", actual.andySolo, anterior.andySolo, true],
+      ["Ahorro ARS", actual.ahorroARS, anterior.ahorroARS, false]
+    ];
+  } else {
+    const actualCompartido = alcance === "Yessi"
+      ? actual.yessiCompartido
+      : actual.andyCompartido;
+    const anteriorCompartido = alcance === "Yessi"
+      ? anterior.yessiCompartido
+      : anterior.andyCompartido;
+    const actualSolo = alcance === "Yessi"
+      ? actual.yessiSolo
+      : actual.andySolo;
+    const anteriorSolo = alcance === "Yessi"
+      ? anterior.yessiSolo
+      : anterior.andySolo;
+
+    items = [
+      ["Ingresos", actual.ingresos, anterior.ingresos, false],
+      ["Compartido", actualCompartido, anteriorCompartido, true],
+      ["Solo", actualSolo, anteriorSolo, true],
+      ["Ahorro ARS", actual.ahorroARS, anterior.ahorroARS, false]
+    ];
+  }
 
   items.forEach(([nombre, valorActual, valorAnterior, menorEsMejor]) => {
     let cambio = 0;
@@ -346,6 +477,27 @@ function calcularPeriodoAnterior() {
     desde: fechaISO(anteriorDesde),
     hasta: fechaISO(anteriorHasta)
   };
+}
+
+function calcularDiasSeleccionados() {
+  if (!filtroDesde.value || !filtroHasta.value) {
+    return 1;
+  }
+
+  const desde = new Date(filtroDesde.value + "T00:00:00");
+  const hasta = new Date(filtroHasta.value + "T00:00:00");
+
+  return Math.max(
+    1,
+    Math.round((hasta - desde) / 86400000) + 1
+  );
+}
+
+function formatearUSD(valor) {
+  return "USD " + new Intl.NumberFormat("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(valor || 0);
 }
 
 function moneda(valor) {

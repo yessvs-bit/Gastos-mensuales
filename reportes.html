@@ -23,6 +23,15 @@
 
     <p id="estadoSync" class="sync-status">Conectando con Google Sheets…</p>
 
+    <section class="panel report-scope-panel">
+      <span class="field-title">Vista</span>
+      <div class="segmented three" id="alcanceSelector">
+        <button type="button" data-value="Hogar" class="active">HOGAR</button>
+        <button type="button" data-value="Yessi">YESSI</button>
+        <button type="button" data-value="Andy">ANDY</button>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="section-head">
         <div>
@@ -44,30 +53,53 @@
       </div>
     </section>
 
-    <section class="report-grid">
+    <section class="report-grid report-grid-seven">
       <article class="report-card">
         <span>Ingresos</span>
         <strong id="totalIngresos">$ 0</strong>
       </article>
-      <article class="report-card">
-        <span>Compartidos</span>
-        <strong id="totalCompartidos">$ 0</strong>
+      <article class="report-card" data-hogar>
+        <span>Yessi compartido</span>
+        <strong id="totalYessiCompartido">$ 0</strong>
+      </article>
+      <article class="report-card" data-hogar>
+        <span>Andy compartido</span>
+        <strong id="totalAndyCompartido">$ 0</strong>
       </article>
       <article class="report-card">
-        <span>Yessi solo</span>
-        <strong id="totalYessiSolo">$ 0</strong>
+        <span id="labelSolo1">Yessi solo</span>
+        <strong id="totalSolo1">$ 0</strong>
       </article>
-      <article class="report-card">
-        <span>Andy solo</span>
-        <strong id="totalAndySolo">$ 0</strong>
+      <article class="report-card" id="solo2Card">
+        <span id="labelSolo2">Andy solo</span>
+        <strong id="totalSolo2">$ 0</strong>
       </article>
       <article class="report-card">
         <span>Ahorro ARS</span>
         <strong id="totalAhorroARS">$ 0</strong>
       </article>
       <article class="report-card">
+        <span>Ahorro USD</span>
+        <strong id="totalAhorroUSD">USD 0,00</strong>
+      </article>
+    </section>
+
+    <section class="indicator-grid">
+      <article class="indicator-card">
+        <span>Balance</span>
+        <strong id="balancePeriodo">$ 0</strong>
+      </article>
+      <article class="indicator-card">
         <span>Tasa de ahorro</span>
         <strong id="tasaAhorro">0%</strong>
+      </article>
+      <article class="indicator-card">
+        <span>Promedio diario</span>
+        <strong id="promedioDiario">$ 0</strong>
+      </article>
+      <article class="indicator-card">
+        <span>Movimientos</span>
+        <strong id="cantidadMovimientos">0</strong>
       </article>
     </section>
 
