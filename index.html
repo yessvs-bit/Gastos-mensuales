@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6c5ce7" />
+  <title>Gastos Yessi & Andy</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Yessi & Andy</p>
+        <h1>Registrar movimiento</h1>
+      </div>
+      <button id="exportarBtn" class="icon-btn" type="button">CSV</button>
+    </header>
+
+    <section class="summary-strip">
+      <article><span>Yessi</span><strong id="totalYessi">$ 0</strong></article>
+      <article><span>Andy</span><strong id="totalAndy">$ 0</strong></article>
+      <article><span>Total</span><strong id="totalCompartido">$ 0</strong></article>
+    </section>
+
+    <section class="panel">
+      <form id="gastoForm" autocomplete="off">
+        <input type="hidden" id="registroId" />
+
+        <div>
+          <span class="field-title">Persona</span>
+          <div class="segmented" id="personaSelector">
+            <button type="button" data-value="Yessi" class="active">YESSI</button>
+            <button type="button" data-value="Andy">ANDY</button>
+          </div>
+        </div>
+
+        <div>
+          <span class="field-title">Tipo</span>
+          <div class="segmented three" id="tipoSelector">
+            <button type="button" data-value="Compartido" class="active">Compartido</button>
+            <button type="button" data-value="Solo">Solo</button>
+            <button type="button" data-value="Ingreso">Ingreso</button>
+          </div>
+        </div>
+
+        <label>
+          <span>Fecha</span>
+          <input id="fecha" type="date" required />
+        </label>
+
+        <label>
+          <span>Lugar</span>
+          <input id="lugar" type="text" placeholder="Ej.: Dinco Supermercado" required />
+        </label>
+
+        <label>
+          <span>Concepto</span>
+          <input id="concepto" type="text" placeholder="Ej.: Compra mensual" required />
+        </label>
+
+        <div class="two-cols">
+          <label>
+            <span>Unidad</span>
+            <select id="unidad" required>
+              <option value="Global">Global</option>
+              <option value="Unidad">Unidad</option>
+              <option value="Kilogramo">Kilogramo</option>
+              <option value="Litro">Litro</option>
+              <option value="Docena">Docena</option>
+              <option value="Metro">Metro</option>
+              <option value="Hora">Hora</option>
+              <option value="Otro">Otro</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Cantidad</span>
+            <input id="cantidad" type="number" min="0" step="0.01" value="1" required />
+          </label>
+        </div>
+
+        <label>
+          <span>Importe</span>
+          <div class="money-field">
+            <span>$</span>
+            <input id="importe" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00" required />
+          </div>
+        </label>
+
+        <button id="guardarBtn" class="btn primary" type="submit">Guardar</button>
+        <button id="cancelarBtn" class="btn ghost hidden" type="button">Cancelar edición</button>
+        <p id="mensaje" class="message" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <section class="panel movements-panel">
+      <div class="section-head">
+        <div>
+          <h2>Movimientos</h2>
+          <small id="cantidadRegistros">0 registros</small>
+        </div>
+        <input id="filtroMes" type="month" />
+      </div>
+
+      <input id="busqueda" class="search" type="search" placeholder="Buscar lugar, concepto o categoría" />
+      <div id="listaRegistros" class="movement-list"></div>
+      <div id="vacio" class="empty">Todavía no cargaste movimientos.</div>
+    </section>
+  </main>
+
+  <template id="tarjetaTemplate">
+    <article class="movement-card">
+      <div class="movement-main">
+        <div>
+          <p data-campo="lugar" class="place"></p>
+          <p data-campo="concepto" class="concept"></p>
+          <div class="meta">
+            <span data-campo="fecha"></span>
+            <span data-campo="unidad"></span>
+            <span data-campo="cantidad"></span>
+          </div>
+        </div>
+        <strong data-campo="importe" class="amount"></strong>
+      </div>
+      <div class="movement-footer">
+        <span data-campo="categoria" class="badge"></span>
+        <div class="card-actions">
+          <button type="button" class="mini editar">Editar</button>
+          <button type="button" class="mini danger eliminar">Eliminar</button>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
