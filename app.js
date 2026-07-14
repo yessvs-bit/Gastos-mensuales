@@ -1,6 +1,12 @@
-const STORAGE_KEY = "gastos-yessi-andy-v2";
+/*
+  PEGÁ AQUÍ LA URL /exec DE TU IMPLEMENTACIÓN DE GOOGLE APPS SCRIPT.
+  Ejemplo:
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/XXXXXXXX/exec";
+*/
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZAT5hKXj6zHC0zAjTy3TxrBcMytiTkw89MxFB4h9suMTJEbil_k3V2kzZudGIhysr/exec";
+const STORAGE_KEY = "gastos-yessi-andy-v3";
 
-const $ = (s) => document.querySelector(s);
+const $ = (selector) => document.querySelector(selector);
 const form = $("#gastoForm");
 const registroId = $("#registroId");
 const fecha = $("#fecha");
@@ -34,8 +40,8 @@ function inicializar() {
   fecha.value = fechaISO(hoy);
   filtroMes.value = fechaISO(hoy).slice(0, 7);
 
-  configurarSegmentado("#personaSelector", value => persona = value);
-  configurarSegmentado("#tipoSelector", value => tipo = value);
+  configurarSegmentado("#personaSelector", (value) => persona = value);
+  configurarSegmentado("#tipoSelector", (value) => tipo = value);
 
   form.addEventListener("submit", guardarRegistro);
   cancelarBtn.addEventListener("click", cancelarEdicion);
@@ -47,25 +53,30 @@ function inicializar() {
 }
 
 function configurarSegmentado(selector, callback) {
-  document.querySelectorAll(`${selector} button`).forEach(btn => {
-    btn.addEventListener("click", () => {
-      document.querySelectorAll(`${selector} button`).forEach(b => b.classList.remove("active"));
-      btn.classList.add("active");
-      callback(btn.dataset.value);
+  document.querySelectorAll(`${selector} button`).forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(`${selector} button`).forEach((item) => {
+        item.classList.remove("active");
+      });
+      button.classList.add("active");
+      callback(button.dataset.value);
     });
   });
 }
 
 function cargarRegistros() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? []; }
-  catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [];
+  } catch {
+    return [];
+  }
 }
 
 function persistir() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
 }
 
-function guardarRegistro(event) {
+async function guardarRegistro(event) {
   event.preventDefault();
 
   const nuevo = {
@@ -76,7 +87,9 @@ function guardarRegistro(event) {
     unidad: unidad.value,
     cantidad: Number(cantidad.value),
     categoria: `${persona} ${tipo}`,
-    importe: Number(importe.value)
+    importe: Number(importe.value),
+    dispositivo: navigator.userAgent,
+    enviadoEn: new Date().toISOString()
   };
 
   if (!nuevo.fecha || !nuevo.lugar || !nuevo.concepto) {
@@ -84,14 +97,58 @@ function guardarRegistro(event) {
     return;
   }
 
-  const indice = registros.findIndex(item => item.id === nuevo.id);
-  if (indice >= 0) registros[indice] = nuevo;
-  else registros.push(nuevo);
+  if (!Number.isFinite(nuevo.cantidad) || nuevo.cantidad < 0 ||
+      !Number.isFinite(nuevo.importe) || nuevo.importe < 0) {
+    mostrarMensaje("Revisá cantidad e importe.", true);
+    return;
+  }
 
-  persistir();
-  limpiarFormulario();
-  renderizar();
-  mostrarMensaje(indice >= 0 ? "Registro actualizado." : "Registro guardado.");
+  guardarBtn.disabled = true;
+  guardarBtn.textContent = "Guardando…";
+
+  try {
+    await enviarAGoogleSheets(nuevo);
+
+    const indice = registros.findIndex((item) => item.id === nuevo.id);
+    if (indice >= 0) {
+      registros[indice] = nuevo;
+    } else {
+      registros.push(nuevo);
+    }
+
+    persistir();
+    limpiarFormulario();
+    renderizar();
+    mostrarMensaje(indice >= 0 ? "Actualizado y enviado." : "Guardado en Google Sheets.");
+  } catch (error) {
+    console.error(error);
+    mostrarMensaje(error.message || "No se pudo guardar.", true);
+  } finally {
+    guardarBtn.disabled = false;
+    if (!registroId.value) guardarBtn.textContent = "Guardar";
+  }
+}
+
+async function enviarAGoogleSheets(registro) {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.includes("PEGAR_URL")) {
+    throw new Error("Falta pegar la URL de Apps Script en app.js.");
+  }
+
+  const cuerpo = new URLSearchParams();
+  cuerpo.set("payload", JSON.stringify(registro));
+
+  /*
+    mode: "no-cors" evita el bloqueo del navegador por el redireccionamiento
+    de Apps Script. La respuesta no puede leerse, pero el POST sí se envía.
+  */
+  await fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    mode: "no-cors",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    },
+    body: cuerpo.toString()
+  });
 }
 
 function renderizar() {
@@ -99,15 +156,17 @@ function renderizar() {
   listaRegistros.innerHTML = "";
   vacio.style.display = visibles.length ? "none" : "block";
 
-  visibles.forEach(registro => {
+  visibles.forEach((registro) => {
     const tarjeta = tarjetaTemplate.content.cloneNode(true);
     tarjeta.querySelector('[data-campo="fecha"]').textContent = formatearFecha(registro.fecha);
     tarjeta.querySelector('[data-campo="lugar"]').textContent = registro.lugar;
     tarjeta.querySelector('[data-campo="concepto"]').textContent = registro.concepto;
     tarjeta.querySelector('[data-campo="unidad"]').textContent = registro.unidad;
-    tarjeta.querySelector('[data-campo="cantidad"]').textContent = `Cant.: ${formatearCantidad(registro.cantidad)}`;
+    tarjeta.querySelector('[data-campo="cantidad"]').textContent =
+      `Cant.: ${formatearCantidad(registro.cantidad)}`;
     tarjeta.querySelector('[data-campo="categoria"]').textContent = registro.categoria;
-    tarjeta.querySelector('[data-campo="importe"]').textContent = formatearMoneda(registro.importe);
+    tarjeta.querySelector('[data-campo="importe"]').textContent =
+      formatearMoneda(registro.importe);
     tarjeta.querySelector(".editar").addEventListener("click", () => editarRegistro(registro.id));
     tarjeta.querySelector(".eliminar").addEventListener("click", () => eliminarRegistro(registro.id));
     listaRegistros.appendChild(tarjeta);
@@ -118,7 +177,8 @@ function renderizar() {
   totalYessi.textContent = formatearMoneda(yessi);
   totalAndy.textContent = formatearMoneda(andy);
   totalCompartido.textContent = formatearMoneda(yessi + andy);
-  cantidadRegistros.textContent = `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;
+  cantidadRegistros.textContent =
+    `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;
 }
 
 function obtenerVisibles() {
@@ -126,49 +186,65 @@ function obtenerVisibles() {
   const termino = busqueda.value.trim().toLowerCase();
 
   return registros
-    .filter(r => !mes || r.fecha.startsWith(mes))
-    .filter(r => !termino || `${r.lugar} ${r.concepto} ${r.categoria}`.toLowerCase().includes(termino))
-    .sort((a,b) => b.fecha.localeCompare(a.fecha));
+    .filter((registro) => !mes || registro.fecha.startsWith(mes))
+    .filter((registro) =>
+      !termino ||
+      `${registro.lugar} ${registro.concepto} ${registro.categoria}`
+        .toLowerCase()
+        .includes(termino)
+    )
+    .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
-function sumar(lista, categoria) {
-  return lista.filter(r => r.categoria === categoria).reduce((t,r) => t + r.importe, 0);
+function sumar(lista, nombreCategoria) {
+  return lista
+    .filter((registro) => registro.categoria === nombreCategoria)
+    .reduce((total, registro) => total + registro.importe, 0);
 }
 
 function editarRegistro(id) {
-  const r = registros.find(item => item.id === id);
-  if (!r) return;
+  const registro = registros.find((item) => item.id === id);
+  if (!registro) return;
 
-  [persona, tipo] = r.categoria.split(" ");
+  [persona, tipo] = registro.categoria.split(" ");
   activarBoton("#personaSelector", persona);
   activarBoton("#tipoSelector", tipo);
 
-  registroId.value = r.id;
-  fecha.value = r.fecha;
-  lugar.value = r.lugar;
-  concepto.value = r.concepto;
-  unidad.value = r.unidad;
-  cantidad.value = r.cantidad;
-  importe.value = r.importe;
+  registroId.value = registro.id;
+  fecha.value = registro.fecha;
+  lugar.value = registro.lugar;
+  concepto.value = registro.concepto;
+  unidad.value = registro.unidad;
+  cantidad.value = registro.cantidad;
+  importe.value = registro.importe;
 
   guardarBtn.textContent = "Actualizar";
   cancelarBtn.classList.remove("hidden");
-  form.scrollIntoView({behavior:"smooth"});
+  form.scrollIntoView({ behavior: "smooth" });
 }
 
 function activarBoton(selector, valor) {
-  document.querySelectorAll(`${selector} button`).forEach(btn => {
-    btn.classList.toggle("active", btn.dataset.value === valor);
+  document.querySelectorAll(`${selector} button`).forEach((button) => {
+    button.classList.toggle("active", button.dataset.value === valor);
   });
 }
 
 function eliminarRegistro(id) {
-  const r = registros.find(item => item.id === id);
-  if (!r) return;
-  if (!confirm(`¿Eliminar "${r.concepto}" por ${formatearMoneda(r.importe)}?`)) return;
-  registros = registros.filter(item => item.id !== id);
+  const registro = registros.find((item) => item.id === id);
+  if (!registro) return;
+
+  if (!confirm(`¿Eliminar "${registro.concepto}" por ${formatearMoneda(registro.importe)}?`)) {
+    return;
+  }
+
+  /*
+    Esto elimina la copia local. No elimina la fila ya enviada a Sheets.
+    Para corregir en Sheets, editá o borrá la fila manualmente.
+  */
+  registros = registros.filter((item) => item.id !== id);
   persistir();
   renderizar();
+  mostrarMensaje("Eliminado del celular. Revisá la fila en Sheets.");
 }
 
 function cancelarEdicion() {
@@ -190,16 +266,36 @@ function limpiarFormulario() {
 }
 
 function exportarCSV() {
-  if (!registros.length) return mostrarMensaje("No hay registros para exportar.", true);
+  if (!registros.length) {
+    mostrarMensaje("No hay registros para exportar.", true);
+    return;
+  }
 
-  const encabezados = ["Fecha","Lugar","Concepto","Unidad","Cantidad","Categoría","Importe"];
+  const encabezados = [
+    "Fecha", "Lugar", "Concepto", "Unidad",
+    "Cantidad", "Categoría", "Importe"
+  ];
+
   const filas = registros
     .slice()
-    .sort((a,b) => a.fecha.localeCompare(b.fecha))
-    .map(r => [r.fecha,r.lugar,r.concepto,r.unidad,r.cantidad,r.categoria,r.importe.toFixed(2).replace(".",",")]);
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .map((registro) => [
+      registro.fecha,
+      registro.lugar,
+      registro.concepto,
+      registro.unidad,
+      registro.cantidad,
+      registro.categoria,
+      registro.importe.toFixed(2).replace(".", ",")
+    ]);
 
-  const csv = [encabezados,...filas].map(f => f.map(v => `"${String(v).replaceAll('"','""')}"`).join(";")).join("\n");
-  const blob = new Blob(["\ufeff" + csv], {type:"text/csv;charset=utf-8"});
+  const csv = [encabezados, ...filas]
+    .map((fila) =>
+      fila.map((valor) => `"${String(valor).replaceAll('"', '""')}"`).join(";")
+    )
+    .join("\n");
+
+  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = `gastos-${fechaISO(new Date())}.csv`;
@@ -207,24 +303,33 @@ function exportarCSV() {
   URL.revokeObjectURL(link.href);
 }
 
-function mostrarMensaje(texto, error=false) {
+function mostrarMensaje(texto, error = false) {
   mensaje.textContent = texto;
   mensaje.style.color = error ? "#b42318" : "#2563eb";
   clearTimeout(mostrarMensaje.timeout);
-  mostrarMensaje.timeout = setTimeout(() => mensaje.textContent = "", 2500);
+  mostrarMensaje.timeout = setTimeout(() => mensaje.textContent = "", 3000);
 }
 
-function formatearMoneda(v) {
-  return new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS",maximumFractionDigits:0}).format(v);
+function formatearMoneda(valor) {
+  return new Intl.NumberFormat("es-AR", {
+    style: "currency",
+    currency: "ARS",
+    maximumFractionDigits: 0
+  }).format(valor);
 }
-function formatearFecha(v) {
-  const [a,m,d] = v.split("-");
-  return `${d}/${m}/${a}`;
+
+function formatearFecha(valor) {
+  const [anio, mes, dia] = valor.split("-");
+  return `${dia}/${mes}/${anio}`;
 }
-function formatearCantidad(v) {
-  return new Intl.NumberFormat("es-AR",{maximumFractionDigits:2}).format(v);
+
+function formatearCantidad(valor) {
+  return new Intl.NumberFormat("es-AR", {
+    maximumFractionDigits: 2
+  }).format(valor);
 }
-function fechaISO(v) {
-  const local = new Date(v.getTime() - v.getTimezoneOffset()*60000);
-  return local.toISOString().slice(0,10);
+
+function fechaISO(valor) {
+  const local = new Date(valor.getTime() - valor.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 10);
 }
