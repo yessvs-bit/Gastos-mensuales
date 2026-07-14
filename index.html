@@ -49,17 +49,23 @@
           <input id="fecha" type="date" required />
         </label>
 
-        <label>
-          <span>Lugar</span>
-          <input id="lugar" type="text" list="lugaresGuardados" placeholder="Ej.: Dinco Supermercado" required />
-          <datalist id="lugaresGuardados"></datalist>
-        </label>
+        <div class="picker-field">
+          <span class="field-title">Lugar</span>
+          <input id="lugar" type="hidden" required />
+          <button id="abrirLugar" class="picker-button" type="button">
+            <span id="lugarTexto">Elegir lugar</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+        </div>
 
-        <label>
-          <span>Concepto</span>
-          <input id="concepto" type="text" list="conceptosGuardados" placeholder="Ej.: Compra mensual" required />
-          <datalist id="conceptosGuardados"></datalist>
-        </label>
+        <div class="picker-field">
+          <span class="field-title">Concepto</span>
+          <input id="concepto" type="hidden" required />
+          <button id="abrirConcepto" class="picker-button" type="button" disabled>
+            <span id="conceptoTexto">Elegí primero un lugar</span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+        </div>
 
         <div class="two-cols">
           <label>
@@ -134,6 +140,25 @@
       </div>
     </article>
   </template>
+
+
+  <div id="selectorModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitulo">
+    <div class="modal-backdrop" data-cerrar-modal></div>
+    <section class="modal-sheet">
+      <div class="modal-header">
+        <div>
+          <p class="eyebrow" id="modalEyebrow">Seleccionar</p>
+          <h2 id="modalTitulo">Elegir</h2>
+        </div>
+        <button id="cerrarModal" class="modal-close" type="button" aria-label="Cerrar">×</button>
+      </div>
+
+      <input id="modalBusqueda" class="modal-search" type="search" placeholder="Buscar..." />
+      <div id="modalFavoritos" class="quick-grid"></div>
+      <div id="modalLista" class="option-list"></div>
+      <button id="crearOpcion" class="btn ghost create-option hidden" type="button"></button>
+    </section>
+  </div>
 
   <script src="app.js"></script>
 </body>
