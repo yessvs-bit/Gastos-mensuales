@@ -16,6 +16,8 @@ const resumenAhorros = $("#resumenAhorros");
 const ahorrosVacio = $("#ahorrosVacio");
 const listaAhorros = $("#listaAhorros");
 const cantidadAhorros = $("#cantidadAhorros");
+const totalAhorroARS = $("#totalAhorroARS");
+const totalAhorroUSD = $("#totalAhorroUSD");
 
 let registros = [];
 let personaAhorro = "Yessi";
@@ -197,8 +199,31 @@ function renderizar() {
     (registro) => registro.categoria === `${personaResumen} Ahorro`
   );
 
+  renderizarTotales(ahorros);
   renderizarResumen(ahorros);
   renderizarHistorial(ahorros);
+}
+
+function renderizarTotales(ahorros) {
+  const totales = {
+    ARS: 0,
+    USD: 0
+  };
+
+  ahorros.forEach((registro) => {
+    const moneda = registro.moneda || "ARS";
+    const signo = registro.movimiento === "Retiro" ? -1 : 1;
+    const monto = Number(registro.importe || 0);
+
+    if (!Object.prototype.hasOwnProperty.call(totales, moneda)) {
+      totales[moneda] = 0;
+    }
+
+    totales[moneda] += signo * monto;
+  });
+
+  totalAhorroARS.textContent = formatearSaldo(totales.ARS || 0, "ARS");
+  totalAhorroUSD.textContent = formatearSaldo(totales.USD || 0, "USD");
 }
 
 function renderizarResumen(ahorros) {

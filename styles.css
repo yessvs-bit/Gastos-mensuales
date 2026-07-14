@@ -411,3 +411,38 @@ input:focus, select:focus {
   display: grid;
   gap: 8px;
 }
+
+
+.savings-total-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+
+.savings-total-card {
+  padding: 14px;
+  border: 1px solid rgba(108, 92, 231, 0.16);
+  border-radius: 16px;
+  background: #f8f7ff;
+}
+
+.savings-total-card span {
+  display: block;
+  margin-bottom: 4px;
+  color: #667085;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.savings-total-card strong {
+  display: block;
+  font-size: 1.15rem;
+}
+
+@media (max-width: 420px) {
+  .savings-total-grid {
+    grid-template-columns: 1fr;
+  }
+}
