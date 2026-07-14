@@ -1,5 +1,6 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZAT5hKXj6zHC0zAjTy3TxrBcMytiTkw89MxFB4h9suMTJEbil_k3V2kzZudGIhysr/exec";
 const LOCAL_BACKUP_KEY = "gastos-yessi-andy-backup-v5";
+const DATE_FILTER_KEY = "gastos-yessi-rango-fechas-v1";
 const PLACES_KEY = "gastos-yessi-lugares-v3";
 const CONCEPTS_KEY = "gastos-yessi-conceptos-v3";
 
@@ -37,7 +38,9 @@ const cancelarBtn = $("#cancelarBtn");
 const exportarBtn = $("#exportarBtn");
 const sincronizarBtn = $("#sincronizarBtn");
 const estadoSync = $("#estadoSync");
-const filtroMes = $("#filtroMes");
+const filtroDesde = $("#filtroDesde");
+const filtroHasta = $("#filtroHasta");
+const limpiarFechasBtn = $("#limpiarFechasBtn");
 const busqueda = $("#busqueda");
 const totalYessi = $("#totalYessi");
 const totalAndy = $("#totalAndy");
@@ -55,7 +58,11 @@ inicializar();
 async function inicializar() {
   const hoy = new Date();
   fecha.value = fechaISO(hoy);
-  filtroMes.value = fechaISO(hoy).slice(0, 7);
+  cargarRangoFechas();
+
+  filtroDesde.addEventListener("change", guardarRangoYRenderizar);
+  filtroHasta.addEventListener("change", guardarRangoYRenderizar);
+  limpiarFechasBtn.addEventListener("click", limpiarRangoFechas);
 
   configurarSegmentado("#personaSelector", (value) => persona = value);
   configurarSegmentado("#tipoSelector", (value) => tipo = value);
@@ -73,12 +80,42 @@ async function inicializar() {
   cancelarBtn.addEventListener("click", cancelarEdicion);
   exportarBtn.addEventListener("click", exportarCSV);
   sincronizarBtn.addEventListener("click", sincronizarDesdeSheets);
-  filtroMes.addEventListener("input", renderizar);
   busqueda.addEventListener("input", renderizar);
 
   reconstruirAprendizaje();
   renderizar();
   await sincronizarDesdeSheets();
+}
+
+function cargarRangoFechas() {
+  const rango = cargarJSON(DATE_FILTER_KEY, { desde: "", hasta: "" });
+  filtroDesde.value = rango.desde || "";
+  filtroHasta.value = rango.hasta || "";
+}
+
+function guardarRangoYRenderizar() {
+  if (
+    filtroDesde.value &&
+    filtroHasta.value &&
+    filtroDesde.value > filtroHasta.value
+  ) {
+    mostrarMensaje("La fecha Desde no puede ser posterior a Hasta.", true);
+    return;
+  }
+
+  guardarJSON(DATE_FILTER_KEY, {
+    desde: filtroDesde.value,
+    hasta: filtroHasta.value
+  });
+
+  renderizar();
+}
+
+function limpiarRangoFechas() {
+  filtroDesde.value = "";
+  filtroHasta.value = "";
+  guardarJSON(DATE_FILTER_KEY, { desde: "", hasta: "" });
+  renderizar();
 }
 
 function configurarSegmentado(selector, callback) {
@@ -445,11 +482,13 @@ function renderizar() {
 }
 
 function obtenerVisibles() {
-  const mes = filtroMes.value;
+  const desde = filtroDesde.value;
+  const hasta = filtroHasta.value;
   const termino = busqueda.value.trim().toLowerCase();
 
   return registros
-    .filter((registro) => !mes || registro.fecha.startsWith(mes))
+    .filter((registro) => !desde || registro.fecha >= desde)
+    .filter((registro) => !hasta || registro.fecha <= hasta)
     .filter((registro) =>
       !termino ||
       `${registro.lugar} ${registro.concepto} ${registro.categoria}`
