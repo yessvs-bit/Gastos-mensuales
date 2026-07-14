@@ -7,6 +7,17 @@ const CONCEPTS_KEY = "gastos-yessi-conceptos-v3";
 const $ = (selector) => document.querySelector(selector);
 
 const form = $("#gastoForm");
+const tabGastos = $("#tabGastos");
+const tabAhorros = $("#tabAhorros");
+const vistaGastos = $("#vistaGastos");
+const vistaAhorros = $("#vistaAhorros");
+
+const ahorroForm = $("#ahorroForm");
+const fechaAhorro = $("#fechaAhorro");
+const importeAhorro = $("#importeAhorro");
+const guardarAhorroBtn = $("#guardarAhorroBtn");
+const mensajeAhorro = $("#mensajeAhorro");
+const simboloMonedaAhorro = $("#simboloMonedaAhorro");
 const registroId = $("#registroId");
 const fecha = $("#fecha");
 const lugar = $("#lugar");
@@ -14,7 +25,6 @@ const concepto = $("#concepto");
 const unidad = $("#unidad");
 const cantidad = $("#cantidad");
 const importe = $("#importe");
-const camposAhorro = $("#camposAhorro");
 const fondoAhorro = $("#fondoAhorro");
 const fondoNuevo = $("#fondoNuevo");
 const resumenAhorros = $("#resumenAhorros");
@@ -57,6 +67,8 @@ let tipo = "Compartido";
 let registros = cargarJSON(LOCAL_BACKUP_KEY, []);
 let selectorActual = null;
 let movimientoAhorro = "Aporte";
+let personaAhorro = "Yessi";
+let monedaAhorro = "ARS";
 let personaResumenAhorro = "Yessi";
 let jsonpSecuencia = 0;
 
@@ -65,6 +77,7 @@ inicializar();
 async function inicializar() {
   const hoy = new Date();
   fecha.value = fechaISO(hoy);
+  fechaAhorro.value = fechaISO(hoy);
   cargarRangoFechas();
 
   filtroDesde.addEventListener("change", guardarRangoYRenderizar);
@@ -74,7 +87,15 @@ async function inicializar() {
   configurarSegmentado("#personaSelector", (value) => persona = value);
   configurarSegmentado("#tipoSelector", (value) => {
     tipo = value;
-    actualizarModoFormulario();
+  });
+
+  configurarSegmentado("#personaAhorroSelector", (value) => {
+    personaAhorro = value;
+  });
+
+  configurarSegmentado("#monedaAhorroSelector", (value) => {
+    monedaAhorro = value;
+    simboloMonedaAhorro.textContent = value === "USD" ? "USD" : "$";
   });
 
   configurarSegmentado("#movimientoAhorroSelector", (value) => {
@@ -85,6 +106,10 @@ async function inicializar() {
     personaResumenAhorro = value;
     renderizarAhorros();
   });
+
+  tabGastos.addEventListener("click", () => cambiarVista("gastos"));
+  tabAhorros.addEventListener("click", () => cambiarVista("ahorros"));
+  ahorroForm.addEventListener("submit", guardarAhorro);
 
   abrirLugar.addEventListener("click", () => abrirSelector("lugar"));
   abrirConcepto.addEventListener("click", () => abrirSelector("concepto"));
@@ -135,32 +160,6 @@ function limpiarRangoFechas() {
   filtroHasta.value = "";
   guardarJSON(DATE_FILTER_KEY, { desde: "", hasta: "" });
   renderizar();
-}
-
-function actualizarModoFormulario() {
-  const esAhorro = tipo === "Ahorro";
-  camposAhorro.classList.toggle("hidden", !esAhorro);
-
-  if (esAhorro) {
-    lugar.value = "Ahorro";
-    lugarTexto.textContent = "Ahorro";
-    concepto.value = movimientoAhorro;
-    conceptoTexto.textContent = movimientoAhorro;
-    abrirLugar.disabled = true;
-    abrirConcepto.disabled = true;
-    unidad.value = "Global";
-    cantidad.value = "1";
-  } else {
-    abrirLugar.disabled = false;
-
-    if (lugar.value === "Ahorro") {
-      lugar.value = "";
-      concepto.value = "";
-      lugarTexto.textContent = "Elegir lugar";
-      conceptoTexto.textContent = "Elegí primero un lugar";
-      abrirConcepto.disabled = true;
-    }
-  }
 }
 
 function configurarSegmentado(selector, callback) {
@@ -267,7 +266,8 @@ function normalizarRegistro(registro) {
     categoria: String(registro.categoria || ""),
     importe: Number(registro.importe || 0),
     fondo: String(registro.fondo || ""),
-    movimiento: String(registro.movimiento || "")
+    movimiento: String(registro.movimiento || ""),
+    moneda: String(registro.moneda || "ARS")
   };
 }
 
@@ -409,6 +409,75 @@ function seleccionarOpcion(nombre) {
   cerrarSelector();
 }
 
+function cambiarVista(vista) {
+  const mostrarAhorros = vista === "ahorros";
+  tabGastos.classList.toggle("active", !mostrarAhorros);
+  tabAhorros.classList.toggle("active", mostrarAhorros);
+  vistaGastos.classList.toggle("active", !mostrarAhorros);
+  vistaAhorros.classList.toggle("active", mostrarAhorros);
+}
+
+async function guardarAhorro(event) {
+  event.preventDefault();
+
+  const fondo = fondoNuevo.value.trim() || fondoAhorro.value;
+  const monto = Number(importeAhorro.value);
+
+  if (!fechaAhorro.value || !fondo || !Number.isFinite(monto) || monto < 0) {
+    mostrarMensajeAhorro("Revisá fecha, fondo e importe.", true);
+    return;
+  }
+
+  const nuevo = {
+    action: "upsert",
+    id: crypto.randomUUID(),
+    fecha: fechaAhorro.value,
+    lugar: "Ahorro",
+    concepto: movimientoAhorro,
+    unidad: "Global",
+    cantidad: 1,
+    categoria: `${personaAhorro} Ahorro`,
+    importe: monto,
+    fondo,
+    movimiento: movimientoAhorro,
+    moneda: monedaAhorro
+  };
+
+  guardarAhorroBtn.disabled = true;
+  guardarAhorroBtn.textContent = "Guardando…";
+
+  try {
+    await enviarAccion(nuevo);
+    registros.push(normalizarRegistro(nuevo));
+    guardarJSON(LOCAL_BACKUP_KEY, registros);
+    reconstruirAprendizaje();
+    renderizar();
+
+    importeAhorro.value = "";
+    fondoNuevo.value = "";
+    fechaAhorro.value = fechaISO(new Date());
+
+    mostrarMensajeAhorro("Ahorro guardado.");
+    setTimeout(sincronizarDesdeSheets, 1200);
+  } catch (error) {
+    console.error(error);
+    mostrarMensajeAhorro("No se pudo guardar el ahorro.", true);
+  } finally {
+    guardarAhorroBtn.disabled = false;
+    guardarAhorroBtn.textContent = "Guardar ahorro";
+  }
+}
+
+function mostrarMensajeAhorro(texto, error = false) {
+  mensajeAhorro.textContent = texto;
+  mensajeAhorro.style.color = error ? "#b42318" : "#2563eb";
+
+  clearTimeout(mostrarMensajeAhorro.timeout);
+  mostrarMensajeAhorro.timeout = setTimeout(() => {
+    mensajeAhorro.textContent = "";
+  }, 3000);
+}
+
 async function guardarRegistro(event) {
   event.preventDefault();
 
@@ -422,16 +491,10 @@ async function guardarRegistro(event) {
     cantidad: Number(cantidad.value),
     categoria: `${persona} ${tipo}`,
     importe: Number(importe.value),
-    fondo: tipo === "Ahorro"
-      ? (fondoNuevo.value.trim() || fondoAhorro.value)
-      : "",
-    movimiento: tipo === "Ahorro" ? movimientoAhorro : ""
+    fondo: "",
+    movimiento: "",
+    moneda: "ARS"
   };
-
-  if (tipo === "Ahorro") {
-    nuevo.lugar = "Ahorro";
-    nuevo.concepto = movimientoAhorro;
-  }
 
   if (!nuevo.fecha || !nuevo.lugar || !nuevo.concepto) {
     mostrarMensaje("Elegí lugar y concepto.", true);
@@ -554,16 +617,23 @@ function renderizarAhorros() {
 
   movimientos.forEach((registro) => {
     const nombre = registro.fondo || "Libre";
+    const moneda = registro.moneda || "ARS";
 
     if (!fondos.has(nombre)) {
-      fondos.set(nombre, {
+      fondos.set(nombre, {});
+    }
+
+    const monedas = fondos.get(nombre);
+
+    if (!monedas[moneda]) {
+      monedas[moneda] = {
         aporte: 0,
         retiro: 0,
         rendimiento: 0
-      });
+      };
     }
 
-    const datos = fondos.get(nombre);
+    const datos = monedas[moneda];
     const monto = Number(registro.importe || 0);
 
     if (registro.movimiento === "Retiro") {
@@ -580,24 +650,45 @@ function renderizarAhorros() {
 
   [...fondos.entries()]
     .sort((a, b) => a[0].localeCompare(b[0], "es"))
-    .forEach(([nombre, datos]) => {
-      const saldo = datos.aporte + datos.rendimiento - datos.retiro;
+    .forEach(([nombre, monedas]) => {
       const tarjeta = document.createElement("article");
       tarjeta.className = "savings-card";
+
+      const lineas = Object.entries(monedas)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([moneda, datos]) => {
+          const saldo = datos.aporte + datos.rendimiento - datos.retiro;
+          return `
+            <div class="savings-currency-line">
+              <span class="currency-label">${moneda}</span>
+              <strong>${formatearMonedaPorTipo(saldo, moneda)}</strong>
+            </div>
+          `;
+        })
+        .join("");
+
       tarjeta.innerHTML = `
         <div class="savings-card-head">
           <span class="savings-card-title">${escaparHTML(nombre)}</span>
-          <strong class="savings-card-total">${formatearMoneda(saldo)}</strong>
         </div>
-        <div class="savings-card-detail">
-          <span>Aportes: ${formatearMoneda(datos.aporte)}</span>
-          <span>Rendimientos: ${formatearMoneda(datos.rendimiento)}</span>
-          <span>Retiros: ${formatearMoneda(datos.retiro)}</span>
-        </div>
+        <div class="savings-currency-group">${lineas}</div>
       `;
+
       resumenAhorros.appendChild(tarjeta);
     });
 }
+
+function formatearMonedaPorTipo(valor, moneda) {
+  if (moneda === "USD") {
+    return new Intl.NumberFormat("es-AR", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(valor) + " USD";
+  }
+
+  return formatearMoneda(valor);
+}
+
 
 function obtenerVisibles() {
   const desde = filtroDesde.value;
@@ -647,18 +738,6 @@ function editarRegistro(id) {
   cantidad.value = registro.cantidad;
   importe.value = registro.importe;
 
-  if (tipo === "Ahorro") {
-    camposAhorro.classList.remove("hidden");
-    fondoNuevo.value = registro.fondo || "";
-    movimientoAhorro = registro.movimiento || "Aporte";
-    activarBoton("#movimientoAhorroSelector", movimientoAhorro);
-    lugarTexto.textContent = "Ahorro";
-    conceptoTexto.textContent = movimientoAhorro;
-    abrirLugar.disabled = true;
-    abrirConcepto.disabled = true;
-  } else {
-    camposAhorro.classList.add("hidden");
-  }
 
   guardarBtn.textContent = "Actualizar";
   cancelarBtn.classList.remove("hidden");
@@ -714,11 +793,6 @@ function limpiarFormulario() {
 
   persona = "Yessi";
   tipo = "Compartido";
-  movimientoAhorro = "Aporte";
-  fondoNuevo.value = "";
-  fondoAhorro.value = "Libro";
-  activarBoton("#movimientoAhorroSelector", movimientoAhorro);
-  camposAhorro.classList.add("hidden");
   activarBoton("#personaSelector", persona);
   activarBoton("#tipoSelector", tipo);
 
@@ -747,7 +821,8 @@ function exportarCSV() {
     "Categoría",
     "Importe",
     "Fondo",
-    "Movimiento"
+    "Movimiento",
+    "Moneda"
   ];
 
   const filas = registros
@@ -762,7 +837,8 @@ function exportarCSV() {
       registro.categoria,
       registro.importe.toFixed(2).replace(".", ","),
       registro.fondo || "",
-      registro.movimiento || ""
+      registro.movimiento || "",
+      registro.moneda || "ARS"
     ]);
 
   const csv = [encabezados, ...filas]

@@ -418,3 +418,59 @@ input:focus, select:focus {
 .savings-negative {
   color: #b42318;
 }
+
+
+.main-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.main-tab {
+  min-height: 48px;
+  border: 1px solid #d0d5dd;
+  border-radius: 14px;
+  background: #fff;
+  color: #344054;
+  font-weight: 850;
+}
+
+.main-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
+.app-view {
+  display: none;
+}
+
+.app-view.active {
+  display: block;
+}
+
+.savings-currency-group {
+  display: grid;
+  gap: 8px;
+}
+
+.savings-currency-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #eaecf0;
+}
+
+.savings-currency-line:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.currency-label {
+  color: #667085;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
