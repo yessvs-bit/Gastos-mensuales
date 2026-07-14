@@ -1,7 +1,7 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyZAT5hKXj6zHC0zAjTy3TxrBcMytiTkw89MxFB4h9suMTJEbil_k3V2kzZudGIhysr/exec";
-const STORAGE_KEY = "gastos-yessi-andy-v4";
-const PLACES_KEY = "gastos-yessi-lugares-v2";
-const CONCEPTS_KEY = "gastos-yessi-conceptos-v2";
+const LOCAL_BACKUP_KEY = "gastos-yessi-andy-backup-v5";
+const PLACES_KEY = "gastos-yessi-lugares-v3";
+const CONCEPTS_KEY = "gastos-yessi-conceptos-v3";
 
 const $ = (selector) => document.querySelector(selector);
 
@@ -35,6 +35,8 @@ const vacio = $("#vacio");
 const guardarBtn = $("#guardarBtn");
 const cancelarBtn = $("#cancelarBtn");
 const exportarBtn = $("#exportarBtn");
+const sincronizarBtn = $("#sincronizarBtn");
+const estadoSync = $("#estadoSync");
 const filtroMes = $("#filtroMes");
 const busqueda = $("#busqueda");
 const totalYessi = $("#totalYessi");
@@ -44,39 +46,47 @@ const cantidadRegistros = $("#cantidadRegistros");
 
 let persona = "Yessi";
 let tipo = "Compartido";
-let registros = cargarJSON(STORAGE_KEY, []);
+let registros = cargarJSON(LOCAL_BACKUP_KEY, []);
 let selectorActual = null;
+let jsonpSecuencia = 0;
 
 inicializar();
 
-function inicializar() {
+async function inicializar() {
   const hoy = new Date();
   fecha.value = fechaISO(hoy);
   filtroMes.value = fechaISO(hoy).slice(0, 7);
 
-  configurarSegmentado("#personaSelector", value => persona = value);
-  configurarSegmentado("#tipoSelector", value => tipo = value);
+  configurarSegmentado("#personaSelector", (value) => persona = value);
+  configurarSegmentado("#tipoSelector", (value) => tipo = value);
 
   abrirLugar.addEventListener("click", () => abrirSelector("lugar"));
   abrirConcepto.addEventListener("click", () => abrirSelector("concepto"));
   cerrarModal.addEventListener("click", cerrarSelector);
-  document.querySelectorAll("[data-cerrar-modal]").forEach(el => el.addEventListener("click", cerrarSelector));
+  document.querySelectorAll("[data-cerrar-modal]").forEach((el) => {
+    el.addEventListener("click", cerrarSelector);
+  });
   modalBusqueda.addEventListener("input", renderizarSelector);
   crearOpcion.addEventListener("click", crearDesdeBusqueda);
 
   form.addEventListener("submit", guardarRegistro);
   cancelarBtn.addEventListener("click", cancelarEdicion);
   exportarBtn.addEventListener("click", exportarCSV);
+  sincronizarBtn.addEventListener("click", sincronizarDesdeSheets);
   filtroMes.addEventListener("input", renderizar);
   busqueda.addEventListener("input", renderizar);
 
+  reconstruirAprendizaje();
   renderizar();
+  await sincronizarDesdeSheets();
 }
 
 function configurarSegmentado(selector, callback) {
-  document.querySelectorAll(`${selector} button`).forEach(button => {
+  document.querySelectorAll(`${selector} button`).forEach((button) => {
     button.addEventListener("click", () => {
-      document.querySelectorAll(`${selector} button`).forEach(item => item.classList.remove("active"));
+      document.querySelectorAll(`${selector} button`).forEach((item) => {
+        item.classList.remove("active");
+      });
       button.classList.add("active");
       callback(button.dataset.value);
     });
@@ -93,6 +103,120 @@ function cargarJSON(clave, fallback) {
 
 function guardarJSON(clave, valor) {
   localStorage.setItem(clave, JSON.stringify(valor));
+}
+
+async function sincronizarDesdeSheets() {
+  sincronizarBtn.disabled = true;
+  cambiarEstadoSync("Actualizando desde Google Sheets…");
+
+  try {
+    const respuesta = await cargarJSONP();
+    if (!respuesta || !respuesta.ok || !Array.isArray(respuesta.registros)) {
+      throw new Error(respuesta?.error || "Respuesta inválida de la planilla.");
+    }
+
+    registros = respuesta.registros.map(normalizarRegistro);
+    guardarJSON(LOCAL_BACKUP_KEY, registros);
+    reconstruirAprendizaje();
+    renderizar();
+
+    cambiarEstadoSync(
+      `Sincronizado: ${registros.length} movimientos`,
+      "ok"
+    );
+  } catch (error) {
+    console.error(error);
+    cambiarEstadoSync(
+      "No se pudo leer Sheets. Se muestra la última copia guardada.",
+      "error"
+    );
+  } finally {
+    sincronizarBtn.disabled = false;
+  }
+}
+
+function cargarJSONP() {
+  return new Promise((resolve, reject) => {
+    const callbackName = `gastosCallback_${Date.now()}_${jsonpSecuencia++}`;
+    const script = document.createElement("script");
+    const timeout = setTimeout(() => {
+      limpiar();
+      reject(new Error("La planilla tardó demasiado en responder."));
+    }, 15000);
+
+    function limpiar() {
+      clearTimeout(timeout);
+      script.remove();
+      try {
+        delete window[callbackName];
+      } catch {
+        window[callbackName] = undefined;
+      }
+    }
+
+    window[callbackName] = (datos) => {
+      limpiar();
+      resolve(datos);
+    };
+
+    script.onerror = () => {
+      limpiar();
+      reject(new Error("No se pudo conectar con Google Sheets."));
+    };
+
+    const params = new URLSearchParams({
+      callback: callbackName,
+      t: String(Date.now())
+    });
+
+    script.src = `${APPS_SCRIPT_URL}?${params.toString()}`;
+    document.body.appendChild(script);
+  });
+}
+
+function normalizarRegistro(registro) {
+  return {
+    id: String(registro.id || crypto.randomUUID()),
+    fecha: String(registro.fecha || "").slice(0, 10),
+    lugar: String(registro.lugar || ""),
+    concepto: String(registro.concepto || ""),
+    unidad: String(registro.unidad || "Global"),
+    cantidad: Number(registro.cantidad || 0),
+    categoria: String(registro.categoria || ""),
+    importe: Number(registro.importe || 0)
+  };
+}
+
+function reconstruirAprendizaje() {
+  const lugares = [];
+  const conceptosPorLugar = {};
+
+  registros.forEach((registro) => {
+    acumularUso(lugares, registro.lugar);
+
+    if (!conceptosPorLugar[registro.lugar]) {
+      conceptosPorLugar[registro.lugar] = [];
+    }
+    acumularUso(conceptosPorLugar[registro.lugar], registro.concepto);
+  });
+
+  guardarJSON(PLACES_KEY, lugares);
+  guardarJSON(CONCEPTS_KEY, conceptosPorLugar);
+}
+
+function acumularUso(lista, nombre) {
+  const limpio = String(nombre || "").trim();
+  if (!limpio) return;
+
+  const existente = lista.find(
+    (item) => item.nombre.toLowerCase() === limpio.toLowerCase()
+  );
+
+  if (existente) {
+    existente.usos += 1;
+  } else {
+    lista.push({ nombre: limpio, usos: 1 });
+  }
 }
 
 function abrirSelector(tipoSelector) {
@@ -130,17 +254,23 @@ function obtenerOpcionesActuales() {
 }
 
 function renderizarSelector() {
-  const termino = modalBusqueda.value.trim().toLowerCase();
+  const terminoOriginal = modalBusqueda.value.trim();
+  const termino = terminoOriginal.toLowerCase();
+
   const opciones = obtenerOpcionesActuales()
     .slice()
-    .sort((a, b) => (b.usos || 0) - (a.usos || 0) || a.nombre.localeCompare(b.nombre, "es"));
+    .sort((a, b) =>
+      (b.usos || 0) - (a.usos || 0) ||
+      a.nombre.localeCompare(b.nombre, "es")
+    );
 
-  const filtradas = opciones.filter(item => item.nombre.toLowerCase().includes(termino));
-  const favoritas = opciones.slice(0, 4);
+  const filtradas = opciones.filter((item) =>
+    item.nombre.toLowerCase().includes(termino)
+  );
 
   modalFavoritos.innerHTML = "";
   if (!termino) {
-    favoritas.forEach(item => {
+    opciones.slice(0, 4).forEach((item) => {
       const button = document.createElement("button");
       button.type = "button";
       button.className = "quick-option";
@@ -151,19 +281,24 @@ function renderizarSelector() {
   }
 
   modalLista.innerHTML = "";
-  filtradas.forEach(item => {
+  filtradas.forEach((item) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "option-item";
-    button.innerHTML = `<span>${escaparHTML(item.nombre)}</span><span class="option-count">${item.usos || 0} usos</span>`;
+    button.innerHTML =
+      `<span>${escaparHTML(item.nombre)}</span>` +
+      `<span class="option-count">${item.usos || 0} usos</span>`;
     button.addEventListener("click", () => seleccionarOpcion(item.nombre));
     modalLista.appendChild(button);
   });
 
-  const nombreExacto = opciones.some(item => item.nombre.toLowerCase() === termino);
-  if (termino && !nombreExacto) {
+  const nombreExacto = opciones.some(
+    (item) => item.nombre.toLowerCase() === termino
+  );
+
+  if (terminoOriginal && !nombreExacto) {
     crearOpcion.classList.remove("hidden");
-    crearOpcion.textContent = `+ Crear "${modalBusqueda.value.trim()}"`;
+    crearOpcion.textContent = `+ Crear "${terminoOriginal}"`;
   } else {
     crearOpcion.classList.add("hidden");
   }
@@ -172,7 +307,6 @@ function renderizarSelector() {
 function crearDesdeBusqueda() {
   const nombre = modalBusqueda.value.trim();
   if (!nombre) return;
-  agregarOIncrementar(selectorActual, nombre, false);
   seleccionarOpcion(nombre);
 }
 
@@ -191,34 +325,11 @@ function seleccionarOpcion(nombre) {
   cerrarSelector();
 }
 
-function agregarOIncrementar(tipoDato, nombre, incrementar = true) {
-  if (tipoDato === "lugar") {
-    const lugares = cargarJSON(PLACES_KEY, []);
-    actualizarLista(lugares, nombre, incrementar);
-    guardarJSON(PLACES_KEY, lugares);
-    return;
-  }
-
-  const mapa = cargarJSON(CONCEPTS_KEY, {});
-  const claveLugar = lugar.value;
-  if (!mapa[claveLugar]) mapa[claveLugar] = [];
-  actualizarLista(mapa[claveLugar], nombre, incrementar);
-  guardarJSON(CONCEPTS_KEY, mapa);
-}
-
-function actualizarLista(lista, nombre, incrementar) {
-  const existente = lista.find(item => item.nombre.toLowerCase() === nombre.toLowerCase());
-  if (existente) {
-    if (incrementar) existente.usos = (existente.usos || 0) + 1;
-  } else {
-    lista.push({ nombre, usos: incrementar ? 1 : 0 });
-  }
-}
-
 async function guardarRegistro(event) {
   event.preventDefault();
 
   const nuevo = {
+    action: "upsert",
     id: registroId.value || crypto.randomUUID(),
     fecha: fecha.value,
     lugar: lugar.value.trim(),
@@ -226,8 +337,7 @@ async function guardarRegistro(event) {
     unidad: unidad.value,
     cantidad: Number(cantidad.value),
     categoria: `${persona} ${tipo}`,
-    importe: Number(importe.value),
-    enviadoEn: new Date().toISOString()
+    importe: Number(importe.value)
   };
 
   if (!nuevo.fecha || !nuevo.lugar || !nuevo.concepto) {
@@ -235,8 +345,12 @@ async function guardarRegistro(event) {
     return;
   }
 
-  if (!Number.isFinite(nuevo.cantidad) || nuevo.cantidad < 0 ||
-      !Number.isFinite(nuevo.importe) || nuevo.importe < 0) {
+  if (
+    !Number.isFinite(nuevo.cantidad) ||
+    nuevo.cantidad < 0 ||
+    !Number.isFinite(nuevo.importe) ||
+    nuevo.importe < 0
+  ) {
     mostrarMensaje("Revisá cantidad e importe.", true);
     return;
   }
@@ -245,19 +359,24 @@ async function guardarRegistro(event) {
   guardarBtn.textContent = "Guardando…";
 
   try {
-    await enviarAGoogleSheets(nuevo);
+    await enviarAccion(nuevo);
 
-    const indice = registros.findIndex(item => item.id === nuevo.id);
-    if (indice >= 0) registros[indice] = nuevo;
-    else registros.push(nuevo);
+    const indice = registros.findIndex((item) => item.id === nuevo.id);
+    const limpio = normalizarRegistro(nuevo);
 
-    agregarOIncrementar("lugar", nuevo.lugar, true);
-    agregarOIncrementar("concepto", nuevo.concepto, true);
+    if (indice >= 0) {
+      registros[indice] = limpio;
+    } else {
+      registros.push(limpio);
+    }
 
-    guardarJSON(STORAGE_KEY, registros);
+    guardarJSON(LOCAL_BACKUP_KEY, registros);
+    reconstruirAprendizaje();
     limpiarFormulario();
     renderizar();
-    mostrarMensaje(indice >= 0 ? "Actualizado." : "Guardado.");
+    mostrarMensaje(indice >= 0 ? "Movimiento actualizado." : "Movimiento guardado.");
+
+    setTimeout(sincronizarDesdeSheets, 1200);
   } catch (error) {
     console.error(error);
     mostrarMensaje(error.message || "No se pudo guardar.", true);
@@ -267,14 +386,16 @@ async function guardarRegistro(event) {
   }
 }
 
-async function enviarAGoogleSheets(registro) {
+async function enviarAccion(datos) {
   const cuerpo = new URLSearchParams();
-  cuerpo.set("payload", JSON.stringify(registro));
+  cuerpo.set("payload", JSON.stringify(datos));
 
   await fetch(APPS_SCRIPT_URL, {
     method: "POST",
     mode: "no-cors",
-    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"
+    },
     body: cuerpo.toString()
   });
 }
@@ -284,26 +405,43 @@ function renderizar() {
   listaRegistros.innerHTML = "";
   vacio.style.display = visibles.length ? "none" : "block";
 
-  visibles.forEach(registro => {
+  visibles.forEach((registro) => {
     const tarjeta = tarjetaTemplate.content.cloneNode(true);
-    tarjeta.querySelector('[data-campo="fecha"]').textContent = formatearFecha(registro.fecha);
+
+    tarjeta.querySelector('[data-campo="fecha"]').textContent =
+      formatearFecha(registro.fecha);
     tarjeta.querySelector('[data-campo="lugar"]').textContent = registro.lugar;
-    tarjeta.querySelector('[data-campo="concepto"]').textContent = registro.concepto;
-    tarjeta.querySelector('[data-campo="unidad"]').textContent = registro.unidad;
-    tarjeta.querySelector('[data-campo="cantidad"]').textContent = `Cant.: ${formatearCantidad(registro.cantidad)}`;
-    tarjeta.querySelector('[data-campo="categoria"]').textContent = registro.categoria;
-    tarjeta.querySelector('[data-campo="importe"]').textContent = formatearMoneda(registro.importe);
-    tarjeta.querySelector(".editar").addEventListener("click", () => editarRegistro(registro.id));
-    tarjeta.querySelector(".eliminar").addEventListener("click", () => eliminarRegistro(registro.id));
+    tarjeta.querySelector('[data-campo="concepto"]').textContent =
+      registro.concepto;
+    tarjeta.querySelector('[data-campo="unidad"]').textContent =
+      registro.unidad;
+    tarjeta.querySelector('[data-campo="cantidad"]').textContent =
+      `Cant.: ${formatearCantidad(registro.cantidad)}`;
+    tarjeta.querySelector('[data-campo="categoria"]').textContent =
+      registro.categoria;
+    tarjeta.querySelector('[data-campo="importe"]').textContent =
+      formatearMoneda(registro.importe);
+
+    tarjeta.querySelector(".editar").addEventListener(
+      "click",
+      () => editarRegistro(registro.id)
+    );
+    tarjeta.querySelector(".eliminar").addEventListener(
+      "click",
+      () => eliminarRegistro(registro.id)
+    );
+
     listaRegistros.appendChild(tarjeta);
   });
 
   const yessi = sumar(visibles, "Yessi Compartido");
   const andy = sumar(visibles, "Andy Compartido");
+
   totalYessi.textContent = formatearMoneda(yessi);
   totalAndy.textContent = formatearMoneda(andy);
   totalCompartido.textContent = formatearMoneda(yessi + andy);
-  cantidadRegistros.textContent = `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;
+  cantidadRegistros.textContent =
+    `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;
 }
 
 function obtenerVisibles() {
@@ -311,33 +449,46 @@ function obtenerVisibles() {
   const termino = busqueda.value.trim().toLowerCase();
 
   return registros
-    .filter(r => !mes || r.fecha.startsWith(mes))
-    .filter(r => !termino || `${r.lugar} ${r.concepto} ${r.categoria}`.toLowerCase().includes(termino))
-    .sort((a, b) => b.fecha.localeCompare(a.fecha));
+    .filter((registro) => !mes || registro.fecha.startsWith(mes))
+    .filter((registro) =>
+      !termino ||
+      `${registro.lugar} ${registro.concepto} ${registro.categoria}`
+        .toLowerCase()
+        .includes(termino)
+    )
+    .sort((a, b) =>
+      b.fecha.localeCompare(a.fecha) ||
+      b.id.localeCompare(a.id)
+    );
 }
 
 function sumar(lista, categoriaBuscada) {
-  return lista.filter(r => r.categoria === categoriaBuscada).reduce((total, r) => total + r.importe, 0);
+  return lista
+    .filter((registro) => registro.categoria === categoriaBuscada)
+    .reduce((total, registro) => total + registro.importe, 0);
 }
 
 function editarRegistro(id) {
-  const r = registros.find(item => item.id === id);
-  if (!r) return;
+  const registro = registros.find((item) => item.id === id);
+  if (!registro) return;
 
-  [persona, tipo] = r.categoria.split(" ");
+  const partes = registro.categoria.split(" ");
+  persona = partes.shift() || "Yessi";
+  tipo = partes.join(" ") || "Compartido";
+
   activarBoton("#personaSelector", persona);
   activarBoton("#tipoSelector", tipo);
 
-  registroId.value = r.id;
-  fecha.value = r.fecha;
-  lugar.value = r.lugar;
-  concepto.value = r.concepto;
-  lugarTexto.textContent = r.lugar;
-  conceptoTexto.textContent = r.concepto;
+  registroId.value = registro.id;
+  fecha.value = registro.fecha;
+  lugar.value = registro.lugar;
+  concepto.value = registro.concepto;
+  lugarTexto.textContent = registro.lugar;
+  conceptoTexto.textContent = registro.concepto;
   abrirConcepto.disabled = false;
-  unidad.value = r.unidad;
-  cantidad.value = r.cantidad;
-  importe.value = r.importe;
+  unidad.value = registro.unidad;
+  cantidad.value = registro.cantidad;
+  importe.value = registro.importe;
 
   guardarBtn.textContent = "Actualizar";
   cancelarBtn.classList.remove("hidden");
@@ -345,20 +496,39 @@ function editarRegistro(id) {
 }
 
 function activarBoton(selector, valor) {
-  document.querySelectorAll(`${selector} button`).forEach(button => {
+  document.querySelectorAll(`${selector} button`).forEach((button) => {
     button.classList.toggle("active", button.dataset.value === valor);
   });
 }
 
-function eliminarRegistro(id) {
-  const r = registros.find(item => item.id === id);
-  if (!r) return;
-  if (!confirm(`¿Eliminar "${r.concepto}" por ${formatearMoneda(r.importe)}?`)) return;
+async function eliminarRegistro(id) {
+  const registro = registros.find((item) => item.id === id);
+  if (!registro) return;
 
-  registros = registros.filter(item => item.id !== id);
-  guardarJSON(STORAGE_KEY, registros);
-  renderizar();
-  mostrarMensaje("Eliminado del celular. Revisá Sheets.");
+  if (
+    !confirm(
+      `¿Eliminar "${registro.concepto}" por ${formatearMoneda(registro.importe)}?`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    cambiarEstadoSync("Eliminando movimiento…");
+    await enviarAccion({ action: "delete", id });
+
+    registros = registros.filter((item) => item.id !== id);
+    guardarJSON(LOCAL_BACKUP_KEY, registros);
+    reconstruirAprendizaje();
+    renderizar();
+    mostrarMensaje("Movimiento eliminado.");
+
+    setTimeout(sincronizarDesdeSheets, 1200);
+  } catch (error) {
+    console.error(error);
+    mostrarMensaje("No se pudo eliminar.", true);
+    cambiarEstadoSync("Error al eliminar.", "error");
+  }
 }
 
 function cancelarEdicion() {
@@ -371,6 +541,7 @@ function limpiarFormulario() {
   fecha.value = fechaISO(new Date());
   unidad.value = "Global";
   cantidad.value = "1";
+
   persona = "Yessi";
   tipo = "Compartido";
   activarBoton("#personaSelector", persona);
@@ -387,19 +558,47 @@ function limpiarFormulario() {
 }
 
 function exportarCSV() {
-  if (!registros.length) return mostrarMensaje("No hay registros para exportar.", true);
+  if (!registros.length) {
+    mostrarMensaje("No hay registros para exportar.", true);
+    return;
+  }
 
-  const encabezados = ["Fecha","Lugar","Concepto","Unidad","Cantidad","Categoría","Importe"];
+  const encabezados = [
+    "Fecha",
+    "Lugar",
+    "Concepto",
+    "Unidad",
+    "Cantidad",
+    "Categoría",
+    "Importe"
+  ];
+
   const filas = registros
     .slice()
-    .sort((a,b) => a.fecha.localeCompare(b.fecha))
-    .map(r => [r.fecha,r.lugar,r.concepto,r.unidad,r.cantidad,r.categoria,r.importe.toFixed(2).replace(".", ",")]);
+    .sort((a, b) => a.fecha.localeCompare(b.fecha))
+    .map((registro) => [
+      registro.fecha,
+      registro.lugar,
+      registro.concepto,
+      registro.unidad,
+      registro.cantidad,
+      registro.categoria,
+      registro.importe.toFixed(2).replace(".", ",")
+    ]);
 
-  const csv = [encabezados,...filas]
-    .map(fila => fila.map(v => `"${String(v).replaceAll('"','""')}"`).join(";"))
+  const csv = [encabezados, ...filas]
+    .map((fila) =>
+      fila
+        .map((valor) => `"${String(valor).replaceAll('"', '""')}"`)
+        .join(";")
+    )
     .join("\n");
 
-  const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob(
+    ["\ufeff" + csv],
+    { type: "text/csv;charset=utf-8" }
+  );
+
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = `gastos-${fechaISO(new Date())}.csv`;
@@ -407,11 +606,19 @@ function exportarCSV() {
   URL.revokeObjectURL(link.href);
 }
 
+function cambiarEstadoSync(texto, clase = "") {
+  estadoSync.textContent = texto;
+  estadoSync.className = `sync-status ${clase}`.trim();
+}
+
 function mostrarMensaje(texto, error = false) {
   mensaje.textContent = texto;
   mensaje.style.color = error ? "#b42318" : "#2563eb";
+
   clearTimeout(mostrarMensaje.timeout);
-  mostrarMensaje.timeout = setTimeout(() => mensaje.textContent = "", 2800);
+  mostrarMensaje.timeout = setTimeout(() => {
+    mensaje.textContent = "";
+  }, 3000);
 }
 
 function escaparHTML(texto) {
@@ -431,15 +638,19 @@ function formatearMoneda(valor) {
 }
 
 function formatearFecha(valor) {
-  const [a, m, d] = valor.split("-");
-  return `${d}/${m}/${a}`;
+  const [anio, mes, dia] = valor.split("-");
+  return `${dia}/${mes}/${anio}`;
 }
 
 function formatearCantidad(valor) {
-  return new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(valor);
+  return new Intl.NumberFormat("es-AR", {
+    maximumFractionDigits: 2
+  }).format(valor);
 }
 
 function fechaISO(valor) {
-  const local = new Date(valor.getTime() - valor.getTimezoneOffset() * 60000);
+  const local = new Date(
+    valor.getTime() - valor.getTimezoneOffset() * 60000
+  );
   return local.toISOString().slice(0, 10);
 }

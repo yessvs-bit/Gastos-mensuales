@@ -14,9 +14,13 @@
         <p class="eyebrow">Yessi & Andy</p>
         <h1>Registrar movimiento</h1>
       </div>
-      <button id="exportarBtn" class="icon-btn" type="button">CSV</button>
+      <div class="header-actions">
+        <button id="sincronizarBtn" class="icon-btn" type="button" aria-label="Actualizar datos">↻</button>
+        <button id="exportarBtn" class="icon-btn" type="button">CSV</button>
+      </div>
     </header>
 
+    <p id="estadoSync" class="sync-status">Conectando con Google Sheets…</p>
     <section class="summary-strip">
       <article><span>Yessi</span><strong id="totalYessi">$ 0</strong></article>
       <article><span>Andy</span><strong id="totalAndy">$ 0</strong></article>

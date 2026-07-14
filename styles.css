@@ -298,3 +298,30 @@ input:focus, select:focus {
   width: 100%;
   margin-top: 12px;
 }
+
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.sync-status {
+  margin: -4px 0 10px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sync-status.ok {
+  color: #067647;
+}
+
+.sync-status.error {
+  color: #b42318;
+}
+
+.icon-btn:disabled,
+.btn:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
