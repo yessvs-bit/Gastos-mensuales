@@ -41,12 +41,37 @@
 
         <div>
           <span class="field-title">Tipo</span>
-          <div class="segmented three" id="tipoSelector">
+          <div class="segmented four" id="tipoSelector">
             <button type="button" data-value="Compartido" class="active">Compartido</button>
             <button type="button" data-value="Solo">Solo</button>
             <button type="button" data-value="Ingreso">Ingreso</button>
+            <button type="button" data-value="Ahorro">Ahorro</button>
           </div>
         </div>
+
+        <section id="camposAhorro" class="savings-fields hidden">
+          <div>
+            <span class="field-title">Fondo</span>
+            <div class="savings-fund-row">
+              <select id="fondoAhorro">
+                <option value="Libro">Libro</option>
+                <option value="Salud">Salud</option>
+                <option value="Casa">Casa</option>
+                <option value="Libre">Libre</option>
+              </select>
+              <input id="fondoNuevo" type="text" placeholder="O crear otro fondo" />
+            </div>
+          </div>
+
+          <div>
+            <span class="field-title">Movimiento</span>
+            <div class="segmented three" id="movimientoAhorroSelector">
+              <button type="button" data-value="Aporte" class="active">Aporte</button>
+              <button type="button" data-value="Retiro">Retiro</button>
+              <button type="button" data-value="Rendimiento">Rendimiento</button>
+            </div>
+          </div>
+        </section>
 
         <label>
           <span>Fecha</span>
@@ -106,6 +131,23 @@
       </form>
     </section>
 
+    <section class="panel savings-panel">
+      <div class="section-head">
+        <div>
+          <h2>Ahorros personales</h2>
+          <small>Separados por persona y fondo</small>
+        </div>
+      </div>
+
+      <div class="savings-tabs segmented" id="ahorroPersonaTabs">
+        <button type="button" data-value="Yessi" class="active">YESSI</button>
+        <button type="button" data-value="Andy">ANDY</button>
+      </div>
+
+      <div id="resumenAhorros" class="savings-summary"></div>
+      <div id="ahorrosVacio" class="empty">Todavía no hay movimientos de ahorro.</div>
+    </section>
+
     <section class="panel movements-panel">
       <div class="section-head">
         <div>
@@ -142,6 +184,7 @@
             <span data-campo="fecha"></span>
             <span data-campo="unidad"></span>
             <span data-campo="cantidad"></span>
+            <span data-campo="fondo" class="hidden"></span>
           </div>
         </div>
         <strong data-campo="importe" class="amount"></strong>

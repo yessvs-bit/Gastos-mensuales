@@ -14,6 +14,11 @@ const concepto = $("#concepto");
 const unidad = $("#unidad");
 const cantidad = $("#cantidad");
 const importe = $("#importe");
+const camposAhorro = $("#camposAhorro");
+const fondoAhorro = $("#fondoAhorro");
+const fondoNuevo = $("#fondoNuevo");
+const resumenAhorros = $("#resumenAhorros");
+const ahorrosVacio = $("#ahorrosVacio");
 const mensaje = $("#mensaje");
 
 const abrirLugar = $("#abrirLugar");
@@ -51,6 +56,8 @@ let persona = "Yessi";
 let tipo = "Compartido";
 let registros = cargarJSON(LOCAL_BACKUP_KEY, []);
 let selectorActual = null;
+let movimientoAhorro = "Aporte";
+let personaResumenAhorro = "Yessi";
 let jsonpSecuencia = 0;
 
 inicializar();
@@ -65,7 +72,19 @@ async function inicializar() {
   limpiarFechasBtn.addEventListener("click", limpiarRangoFechas);
 
   configurarSegmentado("#personaSelector", (value) => persona = value);
-  configurarSegmentado("#tipoSelector", (value) => tipo = value);
+  configurarSegmentado("#tipoSelector", (value) => {
+    tipo = value;
+    actualizarModoFormulario();
+  });
+
+  configurarSegmentado("#movimientoAhorroSelector", (value) => {
+    movimientoAhorro = value;
+  });
+
+  configurarSegmentado("#ahorroPersonaTabs", (value) => {
+    personaResumenAhorro = value;
+    renderizarAhorros();
+  });
 
   abrirLugar.addEventListener("click", () => abrirSelector("lugar"));
   abrirConcepto.addEventListener("click", () => abrirSelector("concepto"));
@@ -116,6 +135,32 @@ function limpiarRangoFechas() {
   filtroHasta.value = "";
   guardarJSON(DATE_FILTER_KEY, { desde: "", hasta: "" });
   renderizar();
+}
+
+function actualizarModoFormulario() {
+  const esAhorro = tipo === "Ahorro";
+  camposAhorro.classList.toggle("hidden", !esAhorro);
+
+  if (esAhorro) {
+    lugar.value = "Ahorro";
+    lugarTexto.textContent = "Ahorro";
+    concepto.value = movimientoAhorro;
+    conceptoTexto.textContent = movimientoAhorro;
+    abrirLugar.disabled = true;
+    abrirConcepto.disabled = true;
+    unidad.value = "Global";
+    cantidad.value = "1";
+  } else {
+    abrirLugar.disabled = false;
+
+    if (lugar.value === "Ahorro") {
+      lugar.value = "";
+      concepto.value = "";
+      lugarTexto.textContent = "Elegir lugar";
+      conceptoTexto.textContent = "Elegí primero un lugar";
+      abrirConcepto.disabled = true;
+    }
+  }
 }
 
 function configurarSegmentado(selector, callback) {
@@ -220,7 +265,9 @@ function normalizarRegistro(registro) {
     unidad: String(registro.unidad || "Global"),
     cantidad: Number(registro.cantidad || 0),
     categoria: String(registro.categoria || ""),
-    importe: Number(registro.importe || 0)
+    importe: Number(registro.importe || 0),
+    fondo: String(registro.fondo || ""),
+    movimiento: String(registro.movimiento || "")
   };
 }
 
@@ -374,8 +421,17 @@ async function guardarRegistro(event) {
     unidad: unidad.value,
     cantidad: Number(cantidad.value),
     categoria: `${persona} ${tipo}`,
-    importe: Number(importe.value)
+    importe: Number(importe.value),
+    fondo: tipo === "Ahorro"
+      ? (fondoNuevo.value.trim() || fondoAhorro.value)
+      : "",
+    movimiento: tipo === "Ahorro" ? movimientoAhorro : ""
   };
+
+  if (tipo === "Ahorro") {
+    nuevo.lugar = "Ahorro";
+    nuevo.concepto = movimientoAhorro;
+  }
 
   if (!nuevo.fecha || !nuevo.lugar || !nuevo.concepto) {
     mostrarMensaje("Elegí lugar y concepto.", true);
@@ -454,6 +510,12 @@ function renderizar() {
       registro.unidad;
     tarjeta.querySelector('[data-campo="cantidad"]').textContent =
       `Cant.: ${formatearCantidad(registro.cantidad)}`;
+
+    const fondoElemento = tarjeta.querySelector('[data-campo="fondo"]');
+    if (registro.fondo) {
+      fondoElemento.textContent = `${registro.fondo} · ${registro.movimiento}`;
+      fondoElemento.classList.remove("hidden");
+    }
     tarjeta.querySelector('[data-campo="categoria"]').textContent =
       registro.categoria;
     tarjeta.querySelector('[data-campo="importe"]').textContent =
@@ -479,6 +541,62 @@ function renderizar() {
   totalCompartido.textContent = formatearMoneda(yessi + andy);
   cantidadRegistros.textContent =
     `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;
+
+  renderizarAhorros();
+}
+
+function renderizarAhorros() {
+  const movimientos = registros.filter((registro) =>
+    registro.categoria === `${personaResumenAhorro} Ahorro`
+  );
+
+  const fondos = new Map();
+
+  movimientos.forEach((registro) => {
+    const nombre = registro.fondo || "Libre";
+
+    if (!fondos.has(nombre)) {
+      fondos.set(nombre, {
+        aporte: 0,
+        retiro: 0,
+        rendimiento: 0
+      });
+    }
+
+    const datos = fondos.get(nombre);
+    const monto = Number(registro.importe || 0);
+
+    if (registro.movimiento === "Retiro") {
+      datos.retiro += monto;
+    } else if (registro.movimiento === "Rendimiento") {
+      datos.rendimiento += monto;
+    } else {
+      datos.aporte += monto;
+    }
+  });
+
+  resumenAhorros.innerHTML = "";
+  ahorrosVacio.style.display = fondos.size ? "none" : "block";
+
+  [...fondos.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0], "es"))
+    .forEach(([nombre, datos]) => {
+      const saldo = datos.aporte + datos.rendimiento - datos.retiro;
+      const tarjeta = document.createElement("article");
+      tarjeta.className = "savings-card";
+      tarjeta.innerHTML = `
+        <div class="savings-card-head">
+          <span class="savings-card-title">${escaparHTML(nombre)}</span>
+          <strong class="savings-card-total">${formatearMoneda(saldo)}</strong>
+        </div>
+        <div class="savings-card-detail">
+          <span>Aportes: ${formatearMoneda(datos.aporte)}</span>
+          <span>Rendimientos: ${formatearMoneda(datos.rendimiento)}</span>
+          <span>Retiros: ${formatearMoneda(datos.retiro)}</span>
+        </div>
+      `;
+      resumenAhorros.appendChild(tarjeta);
+    });
 }
 
 function obtenerVisibles() {
@@ -528,6 +646,19 @@ function editarRegistro(id) {
   unidad.value = registro.unidad;
   cantidad.value = registro.cantidad;
   importe.value = registro.importe;
+
+  if (tipo === "Ahorro") {
+    camposAhorro.classList.remove("hidden");
+    fondoNuevo.value = registro.fondo || "";
+    movimientoAhorro = registro.movimiento || "Aporte";
+    activarBoton("#movimientoAhorroSelector", movimientoAhorro);
+    lugarTexto.textContent = "Ahorro";
+    conceptoTexto.textContent = movimientoAhorro;
+    abrirLugar.disabled = true;
+    abrirConcepto.disabled = true;
+  } else {
+    camposAhorro.classList.add("hidden");
+  }
 
   guardarBtn.textContent = "Actualizar";
   cancelarBtn.classList.remove("hidden");
@@ -583,6 +714,11 @@ function limpiarFormulario() {
 
   persona = "Yessi";
   tipo = "Compartido";
+  movimientoAhorro = "Aporte";
+  fondoNuevo.value = "";
+  fondoAhorro.value = "Libro";
+  activarBoton("#movimientoAhorroSelector", movimientoAhorro);
+  camposAhorro.classList.add("hidden");
   activarBoton("#personaSelector", persona);
   activarBoton("#tipoSelector", tipo);
 
@@ -609,7 +745,9 @@ function exportarCSV() {
     "Unidad",
     "Cantidad",
     "Categoría",
-    "Importe"
+    "Importe",
+    "Fondo",
+    "Movimiento"
   ];
 
   const filas = registros
@@ -622,7 +760,9 @@ function exportarCSV() {
       registro.unidad,
       registro.cantidad,
       registro.categoria,
-      registro.importe.toFixed(2).replace(".", ",")
+      registro.importe.toFixed(2).replace(".", ","),
+      registro.fondo || "",
+      registro.movimiento || ""
     ]);
 
   const csv = [encabezados, ...filas]
