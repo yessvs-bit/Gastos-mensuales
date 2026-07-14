@@ -44,7 +44,8 @@ const limpiarFechasBtn = $("#limpiarFechasBtn");
 const busqueda = $("#busqueda");
 const totalYessiSolo = $("#totalYessiSolo");
 const totalAndySolo = $("#totalAndySolo");
-const totalCompartido = $("#totalCompartido");
+const totalYessiCompartido = $("#totalYessiCompartido");
+const totalAndyCompartido = $("#totalAndyCompartido");
 const totalIngresos = $("#totalIngresos");
 const cantidadRegistros = $("#cantidadRegistros");
 
@@ -482,8 +483,8 @@ function renderizar() {
 
   totalYessiSolo.textContent = formatearMoneda(yessiSolo);
   totalAndySolo.textContent = formatearMoneda(andySolo);
-  totalCompartido.textContent =
-    formatearMoneda(yessiCompartido + andyCompartido);
+  totalYessiCompartido.textContent = formatearMoneda(yessiCompartido);
+  totalAndyCompartido.textContent = formatearMoneda(andyCompartido);
   totalIngresos.textContent = formatearMoneda(ingresos);
   cantidadRegistros.textContent =
     `${visibles.length} ${visibles.length === 1 ? "registro" : "registros"}`;

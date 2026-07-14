@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#6c5ce7" />
+  <title>Reportes Yessi & Andy</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Yessi & Andy</p>
+        <h1>Reportes</h1>
+      </div>
+      <div class="header-actions">
+        <a class="icon-btn nav-link" href="index.html">Gastos</a>
+        <a class="icon-btn nav-link" href="ahorros.html">Ahorros</a>
+        <button id="sincronizarBtn" class="icon-btn" type="button">↻</button>
+      </div>
+    </header>
+
+    <p id="estadoSync" class="sync-status">Conectando con Google Sheets…</p>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Período</h2>
+          <small>Elegí el rango que querés analizar</small>
+        </div>
+        <button id="verTodoBtn" class="mini" type="button">Ver todo</button>
+      </div>
+
+      <div class="date-range">
+        <label>
+          <span>Desde</span>
+          <input id="filtroDesde" type="date" />
+        </label>
+        <label>
+          <span>Hasta</span>
+          <input id="filtroHasta" type="date" />
+        </label>
+      </div>
+    </section>
+
+    <section class="report-grid">
+      <article class="report-card">
+        <span>Ingresos</span>
+        <strong id="totalIngresos">$ 0</strong>
+      </article>
+      <article class="report-card">
+        <span>Compartidos</span>
+        <strong id="totalCompartidos">$ 0</strong>
+      </article>
+      <article class="report-card">
+        <span>Yessi solo</span>
+        <strong id="totalYessiSolo">$ 0</strong>
+      </article>
+      <article class="report-card">
+        <span>Andy solo</span>
+        <strong id="totalAndySolo">$ 0</strong>
+      </article>
+      <article class="report-card">
+        <span>Ahorro ARS</span>
+        <strong id="totalAhorroARS">$ 0</strong>
+      </article>
+      <article class="report-card">
+        <span>Tasa de ahorro</span>
+        <strong id="tasaAhorro">0%</strong>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Distribución</h2>
+          <small>Cómo se repartió el dinero del período</small>
+        </div>
+      </div>
+      <div id="graficoDistribucion" class="bar-list"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Comparación</h2>
+          <small>Mismo número de días del período anterior</small>
+        </div>
+      </div>
+      <div id="comparacionPeriodo" class="comparison-grid"></div>
+    </section>
+
+    <section class="panel">
+      <div class="section-head">
+        <div>
+          <h2>Top lugares</h2>
+          <small>Dónde más gastaron</small>
+        </div>
+      </div>
+      <div id="topLugares" class="rank-list"></div>
+      <div id="topVacio" class="empty">No hay gastos en este período.</div>
+    </section>
+  </main>
+
+  <script src="reportes.js"></script>
+</body>
+</html>
