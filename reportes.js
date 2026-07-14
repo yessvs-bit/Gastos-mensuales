@@ -299,7 +299,7 @@ function renderizarIndicadores(m, lista) {
 
   tasaAhorro.textContent = `${tasa.toFixed(1)}%`;
 
-  const dias = calcularDiasSeleccionados();
+  const dias = calcularDiasSeleccionados(lista);
   promedioDiario.textContent = moneda(dias > 0 ? gastos / dias : 0);
   cantidadMovimientos.textContent = lista.length;
 }
@@ -454,11 +454,26 @@ function calcularPeriodoAnterior() {
   };
 }
 
-function calcularDiasSeleccionados() {
-  if (!filtroDesde.value || !filtroHasta.value) return 1;
+function calcularDiasSeleccionados(lista) {
+  if (filtroDesde.value && filtroHasta.value) {
+    const desde = new Date(filtroDesde.value + "T00:00:00");
+    const hasta = new Date(filtroHasta.value + "T00:00:00");
 
-  const desde = new Date(filtroDesde.value + "T00:00:00");
-  const hasta = new Date(filtroHasta.value + "T00:00:00");
+    return Math.max(
+      1,
+      Math.round((hasta - desde) / 86400000) + 1
+    );
+  }
+
+  const fechas = lista
+    .map((registro) => registro.fecha)
+    .filter(Boolean)
+    .sort();
+
+  if (!fechas.length) return 1;
+
+  const desde = new Date(fechas[0] + "T00:00:00");
+  const hasta = new Date(fechas[fechas.length - 1] + "T00:00:00");
 
   return Math.max(
     1,
